@@ -1,0 +1,27 @@
+name: "Composite Deploy"
+description: "A composite action that deploys"
+inputs:
+  environment:
+    description: "Target environment"
+    required: true
+  token:
+    description: "Auth token"
+    required: true
+outputs:
+  url:
+    description: "Deployed URL"
+    value: "${{ steps.deploy.outputs.url }}"
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Deploy
+      id: deploy
+      run: echo "url=https://example.com" >> $GITHUB_OUTPUT
+      shell: bash
+    - name: Script step
+      uses: actions/github-script@v7
+      with:
+        script: |
+          console.log("deployed")

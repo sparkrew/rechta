@@ -1,0 +1,20 @@
+name: Anchored CI
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env: &shared-env
+      CI: "true"
+      NODE_ENV: production
+    steps:
+      - &checkout
+        uses: actions/checkout@v4
+      - run: npm run build
+
+  test:
+    runs-on: ubuntu-latest
+    env: *shared-env
+    steps:
+      - *checkout
+      - run: npm test

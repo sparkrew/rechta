@@ -1,0 +1,70 @@
+name: Full Featured
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "go.*"]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions: read-all
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: golangci-lint run
+        shell: bash
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: "${{ steps.meta.outputs.tag }}"
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+      - name: Build image
+        run: docker build -t ${{ env.REGISTRY }}/app:${{ steps.meta.outputs.tag }} .
+
+  test:
+    needs: lint
+    strategy:
+      matrix:
+        go: ["1.21", "1.22"]
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.22
+    steps:
+      - uses: actions/checkout@v4
+      - run: go test -race ./...
+
+  deploy:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        uses: some-org/deploy-action@v2
+        with:
+          image: "${{ env.REGISTRY }}/app:${{ needs.build.outputs.image_tag }}"
+
+  call-reusable:
+    uses: org/repo/.github/workflows/shared.yml@main
+    secrets: inherit
+    with:
+      env: production

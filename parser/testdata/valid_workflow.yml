@@ -1,0 +1,41 @@
+name: CI Pipeline
+on:
+  push:
+    branches: [main, develop]
+    tags: [v*]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GO_VERSION: "1.22"
+  CI: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "${{ env.GO_VERSION }}"
+      - name: Build
+        run: go build ./...
+        shell: bash
+
+  test:
+    needs: build
+    runs-on: [self-hosted, linux]
+    container: golang:1.22
+    environment:
+      name: staging
+      url: "https://staging.example.com"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: go test -v ./...
+        working-directory: ./src

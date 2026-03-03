@@ -1,0 +1,25 @@
+name: "Setup Go"
+description: "Set up a Go environment and add it to the PATH"
+author: "GitHub"
+inputs:
+  go-version:
+    description: "The Go version to install"
+    required: false
+  go-version-file:
+    description: "Path to the go.mod or go.work file"
+    required: false
+  cache:
+    description: "Whether to cache Go modules"
+    required: false
+outputs:
+  go-version:
+    description: "The installed Go version"
+    value: ""
+  cache-hit:
+    description: "Whether the cache was hit"
+    value: ""
+runs:
+  using: "node20"
+  main: "dist/setup/index.js"
+  post: "dist/cache-save/index.js"
+  post-if: "success()"

@@ -1,0 +1,14 @@
+name: "Docker Lint"
+description: "Runs a linter in Docker"
+inputs:
+  config:
+    description: "Config file path"
+    required: false
+runs:
+  using: "docker"
+  image: "docker://alpine:3.19"
+  entrypoint: "/entrypoint.sh"
+  pre-entrypoint: "/pre.sh"
+  args:
+    - "--config"
+    - "${{ inputs.config }}"

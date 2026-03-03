@@ -380,9 +380,10 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 		name := node.Content[i].Value
 		value := node.Content[i+1]
 
-		if value.Kind == yaml.ScalarNode {
+		switch value.Kind {
+		case yaml.ScalarNode:
 			*o = append(*o, Output{Name: name, Value: value.Value})
-		} else if value.Kind == yaml.MappingNode {
+		case yaml.MappingNode:
 			output := Output{Name: name}
 			if err := value.Decode(&output); err != nil {
 				return err

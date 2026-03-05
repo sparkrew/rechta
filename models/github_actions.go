@@ -234,7 +234,7 @@ func (m Metadata) IsValid() bool {
 // UnmarshalYAML implementations
 // ===========================================================================
 
-// StringList: "value" | ["a","b"]
+// UnmarshalYAML StringList: "value" | ["a","b"]
 func (o *StringList) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
 		*o = []string{node.Value}
@@ -254,7 +254,7 @@ func (o *StringList) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Events: on: push | on: [push, pull_request] | on: {push: {branches: [main]}}
+// UnmarshalYAML Events: on: push | on: [push, pull_request] | on: {push: {branches: [main]}}
 func (o *Events) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Kind {
 	case yaml.ScalarNode:
@@ -291,11 +291,13 @@ func (o *Events) UnmarshalYAML(node *yaml.Node) error {
 			}
 			*o = append(*o, event)
 		}
+	default:
+		return nil
 	}
 	return nil
 }
 
-// Jobs: mapping of job-id → job definition
+// UnmarshalYAML Jobs: mapping of job-id → job definition
 func (o *Jobs) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("invalid yaml node type for jobs")
@@ -333,7 +335,7 @@ func (o *Jobs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// JobSecrets: "inherit" | {TOKEN: "${{ secrets.TOKEN }}"}
+// UnmarshalYAML JobSecrets: "inherit" | {TOKEN: "${{ secrets.TOKEN }}"}
 func (o *JobSecrets) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode && node.Value == "inherit" {
 		*o = JobSecrets{{Name: AllSecrets, Value: "inherit"}}
@@ -352,7 +354,7 @@ func (o *JobSecrets) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Inputs: mapping of input-name → input definition
+// UnmarshalYAML Inputs: mapping of input-name → input definition
 func (o *Inputs) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("invalid yaml node type for inputs")
@@ -370,7 +372,7 @@ func (o *Inputs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Outputs: mapping of output-name → output definition (scalar value or mapping)
+// UnmarshalYAML Outputs: mapping of output-name → output definition (scalar value or mapping)
 func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("invalid yaml node type for outputs")
@@ -389,12 +391,14 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 				return err
 			}
 			*o = append(*o, output)
+		default:
+			return nil
 		}
 	}
 	return nil
 }
 
-// Envs: {KEY: "value"} or expression scalar "${{ ... }}"
+// UnmarshalYAML Envs: {KEY: "value"} or expression scalar "${{ ... }}"
 func (o *Envs) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
 		if len(node.Value) > 0 && node.Value[0] == '$' {
@@ -415,7 +419,7 @@ func (o *Envs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Step: captures line info and extracts with.ref / with.script / action from uses
+// UnmarshalYAML Step: captures line info and extracts with.ref / with.script / action from uses
 func (o *Step) UnmarshalYAML(node *yaml.Node) error {
 	type Alias Step
 	t := Alias{
@@ -458,7 +462,7 @@ func (o *Step) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Permissions: "read-all" | "write-all" | {contents: read, ...}
+// UnmarshalYAML Permissions: "read-all" | "write-all" | {contents: read, ...}
 func (o *Permissions) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
 		var permission string
@@ -491,7 +495,7 @@ func (o *Permissions) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// JobRunsOn: "ubuntu-latest" | ["self-hosted","linux"] | {group: ..., labels: [...]}
+// UnmarshalYAML JobRunsOn: "ubuntu-latest" | ["self-hosted","linux"] | {group: ..., labels: [...]}
 func (o *JobRunsOn) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.SequenceNode || node.Kind == yaml.ScalarNode {
 		var runsOn StringList
@@ -526,7 +530,7 @@ func (o *JobRunsOn) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// JobContainer: "alpine:latest" | {image: "alpine:latest"}
+// UnmarshalYAML JobContainer: "alpine:latest" | {image: "alpine:latest"}
 func (o *JobContainer) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
 		o.Image = node.Value
@@ -542,7 +546,7 @@ func (o *JobContainer) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// JobEnvironments: "production" | {name: "prod", url: "..."}
+// UnmarshalYAML JobEnvironments: "production" | {name: "prod", url: "..."}
 func (o *JobEnvironments) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind == yaml.ScalarNode {
 		*o = JobEnvironments{{Name: node.Value}}
@@ -561,7 +565,7 @@ func (o *JobEnvironments) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Strategy: extracts the matrix dimensions from the strategy block
+// UnmarshalYAML Strategy: extracts the matrix dimensions from the strategy block
 func (o *Strategy) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return errors.New("invalid yaml node type for strategy")

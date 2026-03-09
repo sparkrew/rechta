@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "generated": "2026-03-09T22:47:13.796Z",
+  "actions": {
+    "actions/checkout": [
+      {
+        "version": "v4",
+        "sha": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+        "integrity": "sha256-5251829f363b759378b315371864d0080d182ad7a7fe5c54bca83d7b0afb3016",
+        "dependencies": []
+      }
+    ],
+    "gjtorikian/gh-actions-lockfile": [
+      {
+        "version": "v1",
+        "sha": "24be31e941fc36df78f82762cd45c28b4cbcaedd",
+        "integrity": "sha256-6a3612083812bfbf22ef48e284a93dbf82766dea50126f85d2160ae092018087",
+        "dependencies": []
+      }
+    ],
+    "stefanzweifel/git-auto-commit-action": [
+      {
+        "version": "v7",
+        "sha": "04702edda442b2e678b25b537cec683a1493fcb9",
+        "integrity": "sha256-fb727ccb3f59ccc9d4fc5e0de90e1238ad8b9ff2f48e4b100e47ed99c229c509",
+        "dependencies": []
+      }
+    ],
+    "actions/setup-go": [
+      {
+        "version": "v5",
+        "sha": "40f1582b2485089dde7abd97c1529aa768e1baff",
+        "integrity": "sha256-c43cd83deea19ad0e7f2fd7276e132da5543d74d2512202da36ef063a0f8bfcc",
+        "dependencies": []
+      }
+    ],
+    "actions/upload-artifact": [
+      {
+        "version": "v4",
+        "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "integrity": "sha256-d5ee64a6e1acd6b34ba789dbae72b073637349d9ac9fb6fe07d5cbcd40768eae",
+        "dependencies": []
+      }
+    ],
+    "golangci/golangci-lint-action": [
+      {
+        "version": "v9",
+        "sha": "1e7e51e771db61008b38414a730f564565cf7c20",
+        "integrity": "sha256-fca096ec98837aa54f2a50595f11f7a1210ccef27c07d6742886e9421f88bbb0",
+        "dependencies": []
+      }
+    ]
+  }
+}

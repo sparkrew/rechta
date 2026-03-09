@@ -1,0 +1,72 @@
+name: Actions Lockfile
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Mode to run"
+        required: true
+        default: "generate"
+        type: choice
+        options:
+          - generate
+          - verify
+
+permissions:
+  contents: read
+
+jobs:
+  verify-actions:
+    name: Verify Actions Lockfile
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'verify')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gjtorikian/gh-actions-lockfile@v1
+        with:
+          mode: verify
+
+  update-lockfile:
+    name: Regenerate Lockfile
+    needs: verify-actions
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: gjtorikian/gh-actions-lockfile@v1
+        with:
+          mode: generate
+
+      - uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: update actions lockfile"
+          file_pattern: ".github/actions.lock.json"
+
+  generate:
+    name: Generate Lockfile
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'generate'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gjtorikian/gh-actions-lockfile@v1
+        with:
+          mode: generate
+
+      - uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: add actions lockfile"
+          file_pattern: ".github/actions.lock.json"

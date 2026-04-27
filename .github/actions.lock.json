@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-03-09T22:47:13.796Z",
+  "generated": "2026-04-27T05:07:12.102Z",
   "actions": {
     "actions/checkout": [
       {
@@ -26,6 +26,14 @@
         "dependencies": []
       }
     ],
+    "actions/setup-node": [
+      {
+        "version": "v4",
+        "sha": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "integrity": "sha256-583278d0d6b00430eb698333f3ed8f32770a487abf7f051681d22a4eb9779f18",
+        "dependencies": []
+      }
+    ],
     "actions/setup-go": [
       {
         "version": "v5",
@@ -40,6 +48,28 @@
         "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "integrity": "sha256-d5ee64a6e1acd6b34ba789dbae72b073637349d9ac9fb6fe07d5cbcd40768eae",
         "dependencies": []
+      }
+    ],
+    "actions/github-script": [
+      {
+        "version": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+        "sha": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+        "integrity": "sha256-ca7dc67e53832e93e910d6277dda3aa22caaa14250560ba1ce60642dac1eee7e",
+        "dependencies": []
+      }
+    ],
+    "codecov/codecov-action": [
+      {
+        "version": "v5",
+        "sha": "75cd11691c0faa626561e295848008c8a7dddffe",
+        "integrity": "sha256-456b5e92946d1a4bc3e24695410db9e9243e3ea422c2be55f2dd8fe62a17409b",
+        "dependencies": [
+          {
+            "ref": "actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+            "sha": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+            "integrity": "sha256-ca7dc67e53832e93e910d6277dda3aa22caaa14250560ba1ce60642dac1eee7e"
+          }
+        ]
       }
     ],
     "golangci/golangci-lint-action": [

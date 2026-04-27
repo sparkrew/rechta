@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-03-09T22:47:13.796Z",
+  "generated": "2026-04-27T03:31:50.646Z",
   "actions": {
     "actions/checkout": [
       {
@@ -23,6 +23,14 @@
         "version": "v7",
         "sha": "04702edda442b2e678b25b537cec683a1493fcb9",
         "integrity": "sha256-fb727ccb3f59ccc9d4fc5e0de90e1238ad8b9ff2f48e4b100e47ed99c229c509",
+        "dependencies": []
+      }
+    ],
+    "actions/setup-node": [
+      {
+        "version": "v4",
+        "sha": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "integrity": "sha256-583278d0d6b00430eb698333f3ed8f32770a487abf7f051681d22a4eb9779f18",
         "dependencies": []
       }
     ],

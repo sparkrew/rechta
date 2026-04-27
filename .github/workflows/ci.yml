@@ -38,11 +38,17 @@ jobs:
         shell: bash
         run: go test -v -race -coverprofile=coverage.txt ./...
 
-      - name: Upload coverage
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.os }}
           path: coverage.txt
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.txt
+          flags: ${{ matrix.os }}
 
   lint:
     name: Lint

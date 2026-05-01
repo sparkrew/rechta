@@ -10,8 +10,19 @@ permissions:
   contents: read
 
 jobs:
+  verify-lockfile:
+    name: Verify Actions Lockfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gjtorikian/gh-actions-lockfile@v1
+        with:
+          mode: verify
+
   test:
     name: Test (${{ matrix.os }})
+    needs: verify-lockfile
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -52,6 +63,7 @@ jobs:
 
   lint:
     name: Lint
+    needs: verify-lockfile
     runs-on: ubuntu-latest
 
     steps:
@@ -69,6 +81,7 @@ jobs:
 
   vet:
     name: Vet
+    needs: verify-lockfile
     runs-on: ubuntu-latest
 
     steps:

@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -115,7 +116,7 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 		}, nil
 	}
 
-	fmt.Printf("  Resolving %s@%s...\n", ref.FullName(), ref.Ref)
+	fmt.Fprintf(os.Stderr, "  Resolving %s@%s...\n", ref.FullName(), ref.Ref)
 
 	sha, err := r.client.ResolveRef(ref.Owner, ref.Repo, ref.Ref)
 	if err != nil {
@@ -133,11 +134,11 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 	deps, actionType, err := r.findTransitiveDeps(ref, sha)
 	if err != nil {
 		node.Type = ActionTypeUnknown
-		fmt.Printf("    Resolved %s → %s (type: unknown, error fetching config: %v)\n", ref.FullName(), sha[:12], err)
+		fmt.Fprintf(os.Stderr, "    Resolved %s -> %s (type: unknown, error fetching config: %v)\n", ref.FullName(), sha[:12], err)
 		return node, nil
 	}
 	node.Type = actionType
-	fmt.Printf("    Resolved %s → %s (type: %s)\n", ref.FullName(), sha[:12], actionType)
+	fmt.Fprintf(os.Stderr, "    Resolved %s -> %s (type: %s)\n", ref.FullName(), sha[:12], actionType)
 
 	for _, depRef := range deps {
 		child, err := r.resolve(depRef, depth+1)

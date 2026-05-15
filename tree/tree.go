@@ -25,9 +25,9 @@ func PrintText(trees []resolver.WorkflowTree, w io.Writer) {
 }
 
 func printNode(w io.Writer, node *resolver.DependencyNode, prefix string, last bool) {
-	branch := "├── "
+	branch := "+-- "
 	if last {
-		branch = "└── "
+		branch = "`-- "
 	}
 
 	shortSHA := node.SHA
@@ -42,7 +42,7 @@ func printNode(w io.Writer, node *resolver.DependencyNode, prefix string, last b
 
 	fmt.Fprintf(w, "%s%s%s\n", prefix, branch, label)
 
-	childPrefix := prefix + "│   "
+	childPrefix := prefix + "|   "
 	if last {
 		childPrefix = prefix + "    "
 	}

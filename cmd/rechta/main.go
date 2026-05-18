@@ -11,6 +11,11 @@ import (
 	"github.com/sparkrew/rechta/tree"
 )
 
+const (
+	defaultOutputJSON = "dependency-tree.json"
+	defaultOutputTxt  = "dependency-tree.txt"
+)
+
 func main() {
 	workflows := flag.String("workflows", ".github/workflows", "Path to workflows directory")
 	file := flag.String("file", "", "Path to a single workflow file (overrides -workflows)")
@@ -21,6 +26,19 @@ func main() {
 	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
 	flag.StringVar(token, "t", "", "GitHub token (shorthand)")
 
+	saveOutput := false
+	outputPath := ""
+	flag.Func("output", "Save output to file. Without a path: saves to ./dependency-tree.{json|txt}", func(val string) error {
+		saveOutput = true
+		outputPath = val
+		return nil
+	})
+	flag.Func("o", "Save output to file (shorthand for -output)", func(val string) error {
+		saveOutput = true
+		outputPath = val
+		return nil
+	})
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "rechta - GitHub Actions dependency tree generator\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: rechta [flags]\n\n")
@@ -29,6 +47,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format txt\n")
 		fmt.Fprintf(os.Stderr, "  rechta -f .github/workflows/ci.yml\n")
+		fmt.Fprintf(os.Stderr, "  rechta -o                              # saves to ./dependency-tree.json\n")
+		fmt.Fprintf(os.Stderr, "  rechta -o my-tree.json                 # saves to ./my-tree.json\n")
 		fmt.Fprintf(os.Stderr, "\nSet GITHUB_TOKEN to avoid API rate limits (60 req/hr unauthenticated).\n")
 		fmt.Fprintf(os.Stderr, "\nNote: local action references (./path) are only resolved when using\n")
 		fmt.Fprintf(os.Stderr, "directory mode (-w), not single-file mode (-f).\n")
@@ -107,5 +127,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
 			os.Exit(1)
 		}
+	}
+
+	if saveOutput {
+		if outputPath == "" {
+			if *format == "txt" {
+				outputPath = defaultOutputTxt
+			} else {
+				outputPath = defaultOutputJSON
+			}
+		}
+
+		f, err := os.Create(outputPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output file %s: %v\n", outputPath, err)
+			os.Exit(1)
+		}
+		defer f.Close()
+
+		switch *format {
+		case "txt":
+			tree.PrintText(trees, f)
+		default:
+			if err := tree.PrintJSON(trees, f); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
+		fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)
 	}
 }

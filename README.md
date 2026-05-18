@@ -80,9 +80,15 @@ rechta [flags]
 |------|-------|---------|-------------|
 | `--workflows` | `-w` | `.github/workflows` | Path to the workflows directory |
 | `--file` | `-f` | | Path to a single workflow file (overrides `-w`) |
+| `--output` | `-o` | | Save output to a file (see below) |
 | `--token` | `-t` | `$GITHUB_TOKEN` env | GitHub API token for authentication |
 | `--format` | | `json` | Output format: `txt` or `json` |
 | `--depth` | | `10` | Maximum transitive dependency depth |
+
+The output is always printed to the terminal. The `-o` flag additionally saves it to a file:
+
+- `-o` (no value): saves to `./dependency-tree.json` (or `./dependency-tree.txt` with `-format txt`)
+- `-o path/to/file.json`: saves to the specified path
 
 ### Authentication
 
@@ -172,11 +178,12 @@ rechta -w .github/workflows
 **Save output to a file:**
 
 ```bash
-rechta -w .github/workflows > tree.txt
-rechta -w .github/workflows > tree.json
+rechta -w .github/workflows -o                # saves to ./dependency-tree.json
+rechta -w .github/workflows -o tree.json      # saves to ./tree.json
+rechta -w .github/workflows -format txt -o    # saves to ./dependency-tree.txt
 ```
 
-Progress messages go to stderr, so redirecting stdout gives you clean output.
+Output is always printed to the terminal as well. You can also use shell redirection (`> file.json`) since progress messages go to stderr.
 
 **Limit depth:**
 

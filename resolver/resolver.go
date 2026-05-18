@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/sparkrew/rechta/models"
+	"github.com/sparkrew/rechta/parser"
 )
 
 const DefaultMaxDepth = 10
@@ -16,15 +17,21 @@ var actionRefRegex = regexp.MustCompile(`^([^/]+)/([^/@]+)(?:/([^@]+))?@(.+)$`)
 
 // ActionRef represents a parsed GitHub Actions reference from a uses: field.
 type ActionRef struct {
-	Owner   string `json:"owner"`
-	Repo    string `json:"repo"`
-	Path    string `json:"path,omitempty"`
-	Ref     string `json:"ref"`
-	RawUses string `json:"uses"`
+	Owner     string `json:"owner,omitempty"`
+	Repo      string `json:"repo,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Ref       string `json:"ref,omitempty"`
+	RawUses   string `json:"uses"`
+	IsLocal   bool   `json:"is_local,omitempty"`
+	LocalPath string `json:"local_path,omitempty"`
 }
 
 // FullName returns the action's canonical name (owner/repo or owner/repo/path).
+// For local refs it returns the local path.
 func (r ActionRef) FullName() string {
+	if r.IsLocal {
+		return r.LocalPath
+	}
 	if r.Path != "" {
 		return fmt.Sprintf("%s/%s/%s", r.Owner, r.Repo, r.Path)
 	}
@@ -62,10 +69,12 @@ type Resolver struct {
 	client   *GitHubClient
 	visited  map[string]*DependencyNode
 	maxDepth int
+	basePath string
 }
 
-// NewResolver creates a resolver with the given GitHub client and depth limit.
-func NewResolver(client *GitHubClient, maxDepth int) *Resolver {
+// NewResolver creates a resolver with the given GitHub client, depth limit,
+// and base path for resolving local action references.
+func NewResolver(client *GitHubClient, maxDepth int, basePath string) *Resolver {
 	if maxDepth <= 0 {
 		maxDepth = DefaultMaxDepth
 	}
@@ -73,6 +82,7 @@ func NewResolver(client *GitHubClient, maxDepth int) *Resolver {
 		client:   client,
 		visited:  make(map[string]*DependencyNode),
 		maxDepth: maxDepth,
+		basePath: basePath,
 	}
 }
 
@@ -116,6 +126,10 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 		}, nil
 	}
 
+	if ref.IsLocal {
+		return r.resolveLocal(ref, depth)
+	}
+
 	fmt.Fprintf(os.Stderr, "  Resolving %s@%s...\n", ref.FullName(), ref.Ref)
 
 	sha, err := r.client.ResolveRef(ref.Owner, ref.Repo, ref.Ref)
@@ -151,6 +165,71 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 	return node, nil
 }
 
+func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, error) {
+	if r.basePath == "" {
+		fmt.Fprintf(os.Stderr, "  Skipping local %s (no repo context)\n", ref.LocalPath)
+		node := &DependencyNode{
+			Ref:  ref,
+			Type: ActionTypeUnknown,
+		}
+		r.visited[ref.RawUses] = node
+		return node, nil
+	}
+
+	fmt.Fprintf(os.Stderr, "  Resolving local %s...\n", ref.LocalPath)
+
+	node := &DependencyNode{
+		Ref:  ref,
+		Type: ActionTypeUnknown,
+	}
+
+	r.visited[ref.RawUses] = node
+
+	actionDir := filepath.Join(r.basePath, ref.LocalPath)
+	meta, err := parser.ParseMetadata(filepath.Join(actionDir, "action.yml"))
+	if err != nil {
+		meta, err = parser.ParseMetadata(filepath.Join(actionDir, "action.yaml"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "    Resolved %s (type: unknown, could not read action metadata: %v)\n", ref.LocalPath, err)
+			return node, nil
+		}
+	}
+
+	using := strings.ToLower(meta.Runs.Using)
+
+	switch {
+	case using == "composite":
+		node.Type = ActionTypeComposite
+		for _, step := range meta.Runs.Steps {
+			if step.Uses == "" || ShouldSkipRef(step.Uses) {
+				continue
+			}
+			var depRef ActionRef
+			if IsLocalRef(step.Uses) {
+				depRef = ParseLocalRef(step.Uses)
+			} else {
+				parsed, parseErr := ParseActionRef(step.Uses)
+				if parseErr != nil {
+					continue
+				}
+				depRef = parsed
+			}
+			child, childErr := r.resolve(depRef, depth+1)
+			if childErr != nil {
+				return nil, fmt.Errorf("resolving transitive dep %s of %s: %w", depRef.RawUses, ref.RawUses, childErr)
+			}
+			node.Children = append(node.Children, child)
+		}
+	case strings.HasPrefix(using, "node"):
+		node.Type = ActionTypeNode
+	case using == "docker":
+		node.Type = ActionTypeDocker
+	}
+
+	fmt.Fprintf(os.Stderr, "    Resolved %s (type: %s)\n", ref.LocalPath, node.Type)
+	return node, nil
+}
+
 func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, ActionType, error) {
 	isReusableWorkflow := strings.HasSuffix(ref.Path, ".yml") || strings.HasSuffix(ref.Path, ".yaml")
 
@@ -180,11 +259,15 @@ func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, A
 			if step.Uses == "" || ShouldSkipRef(step.Uses) {
 				continue
 			}
-			parsed, err := ParseActionRef(step.Uses)
-			if err != nil {
-				continue
+			if IsLocalRef(step.Uses) {
+				deps = append(deps, ParseLocalRef(step.Uses))
+			} else {
+				parsed, err := ParseActionRef(step.Uses)
+				if err != nil {
+					continue
+				}
+				deps = append(deps, parsed)
 			}
-			deps = append(deps, parsed)
 		}
 		return deps, ActionTypeComposite, nil
 
@@ -214,13 +297,28 @@ func ParseActionRef(uses string) (ActionRef, error) {
 	}, nil
 }
 
-// ShouldSkipRef returns true if the uses: reference should be skipped
-// (local actions and docker:// references).
-func ShouldSkipRef(uses string) bool {
-	return strings.HasPrefix(uses, "./") || strings.HasPrefix(uses, "docker://")
+// ParseLocalRef creates an ActionRef for a local path reference (./path).
+func ParseLocalRef(uses string) ActionRef {
+	return ActionRef{
+		RawUses:   uses,
+		IsLocal:   true,
+		LocalPath: uses,
+	}
 }
 
-// ExtractActionRefs extracts all unique external action references from a workflow.
+// ShouldSkipRef returns true if the uses: reference should be skipped
+// (docker:// references).
+func ShouldSkipRef(uses string) bool {
+	return strings.HasPrefix(uses, "docker://")
+}
+
+// IsLocalRef returns true if the uses: reference points to a local action (./path).
+func IsLocalRef(uses string) bool {
+	return strings.HasPrefix(uses, "./")
+}
+
+// ExtractActionRefs extracts all unique action references from a workflow,
+// including local (./path) references.
 func ExtractActionRefs(wf *models.Workflow) []ActionRef {
 	seen := make(map[string]bool)
 	var refs []ActionRef
@@ -229,9 +327,13 @@ func ExtractActionRefs(wf *models.Workflow) []ActionRef {
 		// Job-level uses (reusable workflow calls)
 		if job.Uses != "" && !ShouldSkipRef(job.Uses) && !seen[job.Uses] {
 			seen[job.Uses] = true
-			parsed, err := ParseActionRef(job.Uses)
-			if err == nil {
-				refs = append(refs, parsed)
+			if IsLocalRef(job.Uses) {
+				refs = append(refs, ParseLocalRef(job.Uses))
+			} else {
+				parsed, err := ParseActionRef(job.Uses)
+				if err == nil {
+					refs = append(refs, parsed)
+				}
 			}
 		}
 
@@ -241,9 +343,13 @@ func ExtractActionRefs(wf *models.Workflow) []ActionRef {
 				continue
 			}
 			seen[step.Uses] = true
-			parsed, err := ParseActionRef(step.Uses)
-			if err == nil {
-				refs = append(refs, parsed)
+			if IsLocalRef(step.Uses) {
+				refs = append(refs, ParseLocalRef(step.Uses))
+			} else {
+				parsed, err := ParseActionRef(step.Uses)
+				if err == nil {
+					refs = append(refs, parsed)
+				}
 			}
 		}
 	}

@@ -13,10 +13,12 @@ import (
 
 func main() {
 	workflows := flag.String("workflows", ".github/workflows", "Path to workflows directory")
+	file := flag.String("file", "", "Path to a single workflow file (overrides -workflows)")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
 	format := flag.String("format", "json", "Output format: txt or json (default: json)")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
+	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
 	flag.StringVar(token, "t", "", "GitHub token (shorthand)")
 
 	flag.Usage = func() {
@@ -24,9 +26,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: rechta [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExample:\n")
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format txt\n")
+		fmt.Fprintf(os.Stderr, "  rechta -f .github/workflows/ci.yml\n")
 		fmt.Fprintf(os.Stderr, "\nSet GITHUB_TOKEN to avoid API rate limits (60 req/hr unauthenticated).\n")
+		fmt.Fprintf(os.Stderr, "\nNote: local action references (./path) are only resolved when using\n")
+		fmt.Fprintf(os.Stderr, "directory mode (-w), not single-file mode (-f).\n")
 	}
 
 	flag.Parse()
@@ -41,37 +46,50 @@ func main() {
 		os.Exit(1)
 	}
 
-	files, err := resolver.DiscoverWorkflows(*workflows)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error discovering workflows in %s: %v\n", *workflows, err)
-		os.Exit(1)
-	}
-	if len(files) == 0 {
-		fmt.Fprintf(os.Stderr, "No workflow files found in %s\n", *workflows)
-		os.Exit(1)
-	}
-
-	fmt.Fprintf(os.Stderr, "Found %d workflow file(s) in %s\n", len(files), *workflows)
-
 	var wfs []*models.Workflow
-	for _, f := range files {
-		wf, err := parser.ParseWorkflow(f)
+	var basePath string
+
+	if *file != "" {
+		wf, err := parser.ParseWorkflow(*file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: skipping %s: %v\n", f, err)
-			continue
+			fmt.Fprintf(os.Stderr, "Error parsing workflow %s: %v\n", *file, err)
+			os.Exit(1)
 		}
 		wfs = append(wfs, wf)
-	}
+		fmt.Fprintf(os.Stderr, "Parsed workflow: %s\n\n", *file)
+	} else {
+		files, err := resolver.DiscoverWorkflows(*workflows)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error discovering workflows in %s: %v\n", *workflows, err)
+			os.Exit(1)
+		}
+		if len(files) == 0 {
+			fmt.Fprintf(os.Stderr, "No workflow files found in %s\n", *workflows)
+			os.Exit(1)
+		}
 
-	if len(wfs) == 0 {
-		fmt.Fprintf(os.Stderr, "No valid workflow files found\n")
-		os.Exit(1)
-	}
+		fmt.Fprintf(os.Stderr, "Found %d workflow file(s) in %s\n", len(files), *workflows)
 
-	fmt.Fprintf(os.Stderr, "Parsed %d valid workflow(s)\n\n", len(wfs))
+		for _, f := range files {
+			wf, err := parser.ParseWorkflow(f)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: skipping %s: %v\n", f, err)
+				continue
+			}
+			wfs = append(wfs, wf)
+		}
+
+		if len(wfs) == 0 {
+			fmt.Fprintf(os.Stderr, "No valid workflow files found\n")
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "Parsed %d valid workflow(s)\n\n", len(wfs))
+		basePath = "."
+	}
 
 	client := resolver.NewGitHubClient(ghToken, 10)
-	res := resolver.NewResolver(client, *depth)
+	res := resolver.NewResolver(client, *depth, basePath)
 
 	trees, err := res.ResolveAll(wfs)
 	if err != nil {

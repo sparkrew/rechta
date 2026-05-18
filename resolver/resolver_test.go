@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,7 +73,7 @@ func TestShouldSkipRef(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{"./local/action", true},
+		{"./local/action", false},
 		{"docker://alpine:3.18", true},
 		{"actions/checkout@v4", false},
 		{"org/repo@main", false},
@@ -79,6 +81,24 @@ func TestShouldSkipRef(t *testing.T) {
 	for _, tt := range tests {
 		if got := ShouldSkipRef(tt.input); got != tt.want {
 			t.Errorf("ShouldSkipRef(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestIsLocalRef(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"./local/action", true},
+		{"./", true},
+		{"docker://alpine:3.18", false},
+		{"actions/checkout@v4", false},
+		{"org/repo@main", false},
+	}
+	for _, tt := range tests {
+		if got := IsLocalRef(tt.input); got != tt.want {
+			t.Errorf("IsLocalRef(%q) = %v, want %v", tt.input, got, tt.want)
 		}
 	}
 }
@@ -100,7 +120,7 @@ func TestExtractActionRefs(t *testing.T) {
 					{Uses: "actions/checkout@v4"},
 					{Uses: "actions/setup-go@v5"},
 					{Uses: "actions/checkout@v4"}, // duplicate
-					{Uses: "./local/action"},       // should be skipped
+					{Uses: "./local/action"},       // local action, should be included
 					{Uses: "docker://alpine:3.18"}, // should be skipped
 					{Run: "go test ./..."},          // no uses
 				},
@@ -110,10 +130,14 @@ func TestExtractActionRefs(t *testing.T) {
 
 	refs := ExtractActionRefs(wf)
 
-	expected := []string{
-		"org/reusable/.github/workflows/build.yml@main",
-		"actions/checkout@v4",
-		"actions/setup-go@v5",
+	expected := []struct {
+		rawUses string
+		isLocal bool
+	}{
+		{"org/reusable/.github/workflows/build.yml@main", false},
+		{"actions/checkout@v4", false},
+		{"actions/setup-go@v5", false},
+		{"./local/action", true},
 	}
 
 	if len(refs) != len(expected) {
@@ -121,8 +145,11 @@ func TestExtractActionRefs(t *testing.T) {
 	}
 
 	for i, ref := range refs {
-		if ref.RawUses != expected[i] {
-			t.Errorf("ref[%d].RawUses = %q, want %q", i, ref.RawUses, expected[i])
+		if ref.RawUses != expected[i].rawUses {
+			t.Errorf("ref[%d].RawUses = %q, want %q", i, ref.RawUses, expected[i].rawUses)
+		}
+		if ref.IsLocal != expected[i].isLocal {
+			t.Errorf("ref[%d].IsLocal = %v, want %v", i, ref.IsLocal, expected[i].isLocal)
 		}
 	}
 }
@@ -307,7 +334,7 @@ runs:
 	})
 	defer server.Close()
 
-	resolver := NewResolver(client, 10)
+	resolver := NewResolver(client, 10, ".")
 	wf := &models.Workflow{
 		Path: ".github/workflows/test.yml",
 		Jobs: models.Jobs{
@@ -384,7 +411,7 @@ func TestResolve_Deduplication(t *testing.T) {
 	})
 	defer server.Close()
 
-	resolver := NewResolver(client, 10)
+	resolver := NewResolver(client, 10, ".")
 	wf := &models.Workflow{
 		Path: "test.yml",
 		Jobs: models.Jobs{
@@ -457,7 +484,7 @@ func TestResolve_DepthLimit(t *testing.T) {
 	server, client := newMockGitHub(t, routes)
 	defer server.Close()
 
-	resolver := NewResolver(client, 3)
+	resolver := NewResolver(client, 3, ".")
 	wf := &models.Workflow{
 		Path: "test.yml",
 		Jobs: models.Jobs{
@@ -474,5 +501,198 @@ func TestResolve_DepthLimit(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "max dependency depth") {
 		t.Errorf("expected depth limit error, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ParseLocalRef tests
+// ---------------------------------------------------------------------------
+
+func TestParseLocalRef(t *testing.T) {
+	ref := ParseLocalRef("./my-action")
+	if !ref.IsLocal {
+		t.Error("expected IsLocal = true")
+	}
+	if ref.LocalPath != "./my-action" {
+		t.Errorf("LocalPath = %q, want %q", ref.LocalPath, "./my-action")
+	}
+	if ref.RawUses != "./my-action" {
+		t.Errorf("RawUses = %q, want %q", ref.RawUses, "./my-action")
+	}
+	if ref.FullName() != "./my-action" {
+		t.Errorf("FullName() = %q, want %q", ref.FullName(), "./my-action")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Local action resolution tests
+// ---------------------------------------------------------------------------
+
+func TestResolve_LocalNodeAction(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	actionDir := filepath.Join(tmpDir, "my-action")
+	if err := os.MkdirAll(actionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	actionYAML := []byte("name: My Local Action\nruns:\n  using: node20\n  main: index.js\n")
+	if err := os.WriteFile(filepath.Join(actionDir, "action.yml"), actionYAML, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewGitHubClient("", 10)
+	res := NewResolver(client, 10, tmpDir)
+
+	wf := &models.Workflow{
+		Path: ".github/workflows/test.yml",
+		Jobs: models.Jobs{
+			{
+				ID: "test",
+				Steps: models.Steps{
+					{Uses: "./my-action"},
+				},
+			},
+		},
+	}
+
+	trees, err := res.ResolveAll([]*models.Workflow{wf})
+	if err != nil {
+		t.Fatalf("ResolveAll error: %v", err)
+	}
+
+	if len(trees) != 1 {
+		t.Fatalf("expected 1 tree, got %d", len(trees))
+	}
+	if len(trees[0].Dependencies) != 1 {
+		t.Fatalf("expected 1 dep, got %d", len(trees[0].Dependencies))
+	}
+
+	dep := trees[0].Dependencies[0]
+	if !dep.Ref.IsLocal {
+		t.Error("expected dep.Ref.IsLocal = true")
+	}
+	if dep.Ref.LocalPath != "./my-action" {
+		t.Errorf("dep.Ref.LocalPath = %q, want %q", dep.Ref.LocalPath, "./my-action")
+	}
+	if dep.Type != ActionTypeNode {
+		t.Errorf("dep.Type = %q, want %q", dep.Type, ActionTypeNode)
+	}
+	if dep.SHA != "" {
+		t.Errorf("dep.SHA = %q, want empty for local", dep.SHA)
+	}
+}
+
+func TestResolve_LocalCompositeAction(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	actionDir := filepath.Join(tmpDir, "my-composite")
+	if err := os.MkdirAll(actionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	actionYAML := []byte(`name: My Composite
+runs:
+  using: composite
+  steps:
+    - uses: ./inner-action
+    - run: echo hello
+`)
+	if err := os.WriteFile(filepath.Join(actionDir, "action.yml"), actionYAML, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	innerDir := filepath.Join(tmpDir, "inner-action")
+	if err := os.MkdirAll(innerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	innerYAML := []byte("name: Inner\nruns:\n  using: node20\n  main: index.js\n")
+	if err := os.WriteFile(filepath.Join(innerDir, "action.yml"), innerYAML, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewGitHubClient("", 10)
+	res := NewResolver(client, 10, tmpDir)
+
+	wf := &models.Workflow{
+		Path: ".github/workflows/test.yml",
+		Jobs: models.Jobs{
+			{
+				ID: "test",
+				Steps: models.Steps{
+					{Uses: "./my-composite"},
+				},
+			},
+		},
+	}
+
+	trees, err := res.ResolveAll([]*models.Workflow{wf})
+	if err != nil {
+		t.Fatalf("ResolveAll error: %v", err)
+	}
+
+	if len(trees[0].Dependencies) != 1 {
+		t.Fatalf("expected 1 root dep, got %d", len(trees[0].Dependencies))
+	}
+
+	root := trees[0].Dependencies[0]
+	if root.Type != ActionTypeComposite {
+		t.Errorf("root.Type = %q, want composite", root.Type)
+	}
+	if len(root.Children) != 1 {
+		t.Fatalf("expected 1 child, got %d", len(root.Children))
+	}
+
+	child := root.Children[0]
+	if !child.Ref.IsLocal {
+		t.Error("expected child.Ref.IsLocal = true")
+	}
+	if child.Ref.LocalPath != "./inner-action" {
+		t.Errorf("child.Ref.LocalPath = %q, want %q", child.Ref.LocalPath, "./inner-action")
+	}
+	if child.Type != ActionTypeNode {
+		t.Errorf("child.Type = %q, want %q", child.Type, ActionTypeNode)
+	}
+}
+
+func TestResolve_LocalActionDeduplication(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	actionDir := filepath.Join(tmpDir, "my-action")
+	if err := os.MkdirAll(actionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	actionYAML := []byte("name: My Action\nruns:\n  using: node20\n  main: index.js\n")
+	if err := os.WriteFile(filepath.Join(actionDir, "action.yml"), actionYAML, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewGitHubClient("", 10)
+	res := NewResolver(client, 10, tmpDir)
+
+	wf := &models.Workflow{
+		Path: "test.yml",
+		Jobs: models.Jobs{
+			{
+				ID: "job1",
+				Steps: models.Steps{
+					{Uses: "./my-action"},
+				},
+			},
+			{
+				ID: "job2",
+				Steps: models.Steps{
+					{Uses: "./my-action"},
+				},
+			},
+		},
+	}
+
+	trees, err := res.ResolveAll([]*models.Workflow{wf})
+	if err != nil {
+		t.Fatalf("ResolveAll error: %v", err)
+	}
+
+	// ExtractActionRefs deduplicates, so only 1 dep
+	if len(trees[0].Dependencies) != 1 {
+		t.Fatalf("expected 1 dep (deduped by ExtractActionRefs), got %d", len(trees[0].Dependencies))
 	}
 }

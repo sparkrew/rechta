@@ -30,12 +30,16 @@ func printNode(w io.Writer, node *resolver.DependencyNode, prefix string, last b
 		branch = "`-- "
 	}
 
-	shortSHA := node.SHA
-	if len(shortSHA) > 12 {
-		shortSHA = shortSHA[:12]
+	var label string
+	if node.Ref.IsLocal {
+		label = fmt.Sprintf("%s (local)", node.Ref.LocalPath)
+	} else {
+		shortSHA := node.SHA
+		if len(shortSHA) > 12 {
+			shortSHA = shortSHA[:12]
+		}
+		label = fmt.Sprintf("%s@%s (%s)", node.Ref.FullName(), node.Ref.Ref, shortSHA)
 	}
-
-	label := fmt.Sprintf("%s@%s (%s)", node.Ref.FullName(), node.Ref.Ref, shortSHA)
 	if node.AlreadyVisited {
 		label += " *"
 	}

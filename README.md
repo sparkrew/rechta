@@ -80,7 +80,7 @@ rechta [flags]
 |------|-------|---------|-------------|
 | `--workflows` | `-w` | `.github/workflows` | Path to the workflows directory |
 | `--token` | `-t` | `$GITHUB_TOKEN` env | GitHub API token for authentication |
-| `--format` | | `text` | Output format: `text` or `json` |
+| `--format` | | `json` | Output format: `txt` or `json` |
 | `--depth` | | `10` | Maximum transitive dependency depth |
 
 ### Authentication
@@ -103,10 +103,10 @@ $env:GITHUB_TOKEN = "ghp_your_token_here"
 
 ### Examples
 
-**Text tree (default):**
+**Text tree:**
 
 ```bash
-rechta -w .github/workflows
+rechta -w .github/workflows -format txt
 ```
 
 ```
@@ -121,10 +121,10 @@ rechta -w .github/workflows
 
 Each line shows `action@ref (short-sha)`. Indented entries are transitive dependencies pulled in by composite actions. A `*` marker means the action was already resolved from a previous workflow (deduplicated).
 
-**JSON output:**
+**JSON output (default):**
 
 ```bash
-rechta -w .github/workflows -format json
+rechta -w .github/workflows
 ```
 
 ```json
@@ -154,7 +154,7 @@ rechta -w .github/workflows -format json
 
 ```bash
 rechta -w .github/workflows > tree.txt
-rechta -w .github/workflows -format json > tree.json
+rechta -w .github/workflows > tree.json
 ```
 
 Progress messages go to stderr, so redirecting stdout gives you clean output.

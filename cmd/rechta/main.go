@@ -14,7 +14,7 @@ import (
 func main() {
 	workflows := flag.String("workflows", ".github/workflows", "Path to workflows directory")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
-	format := flag.String("format", "text", "Output format: text or json")
+	format := flag.String("format", "json", "Output format: txt or json (default: json)")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
 	flag.StringVar(token, "t", "", "GitHub token (shorthand)")
@@ -25,7 +25,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExample:\n")
-		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format json\n")
+		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format txt\n")
 		fmt.Fprintf(os.Stderr, "\nSet GITHUB_TOKEN to avoid API rate limits (60 req/hr unauthenticated).\n")
 	}
 
@@ -36,8 +36,8 @@ func main() {
 		ghToken = os.Getenv("GITHUB_TOKEN")
 	}
 
-	if *format != "text" && *format != "json" {
-		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (use \"text\" or \"json\")\n", *format)
+	if *format != "txt" && *format != "json" {
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (use \"txt\" or \"json\")\n", *format)
 		os.Exit(1)
 	}
 
@@ -82,12 +82,12 @@ func main() {
 	fmt.Fprintln(os.Stderr)
 
 	switch *format {
-	case "json":
+	case "txt":
+		tree.PrintText(trees, os.Stdout)
+	default:
 		if err := tree.PrintJSON(trees, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
 			os.Exit(1)
 		}
-	default:
-		tree.PrintText(trees, os.Stdout)
 	}
 }

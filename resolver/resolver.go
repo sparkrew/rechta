@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,11 +52,21 @@ const (
 
 // DependencyNode represents a node in the resolved dependency tree.
 type DependencyNode struct {
-	Ref            ActionRef        `json:"ref"`
-	SHA            string           `json:"sha"`
-	Type           ActionType       `json:"type"`
+	Ref            ActionRef         `json:"ref"`
+	SHA            string            `json:"sha"`
+	Type           ActionType        `json:"type"`
 	Children       []*DependencyNode `json:"dependencies,omitempty"`
-	AlreadyVisited bool             `json:"already_visited,omitempty"`
+	AlreadyVisited bool              `json:"already_visited,omitempty"`
+	ContentSHA256  string            `json:"content_sha256,omitempty"`
+	ContentPath    string            `json:"content_path,omitempty"`
+}
+
+func sha256Hex(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("%x", sum)
 }
 
 // WorkflowTree groups the dependency tree for a single workflow file.
@@ -123,6 +134,8 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 			SHA:            existing.SHA,
 			Type:           existing.Type,
 			AlreadyVisited: true,
+			ContentSHA256:  existing.ContentSHA256,
+			ContentPath:    existing.ContentPath,
 		}, nil
 	}
 
@@ -145,13 +158,17 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 
 	r.visited[ref.RawUses] = node
 
-	deps, actionType, err := r.findTransitiveDeps(ref, sha)
+	deps, actionType, cHash, cPath, err := r.findTransitiveDeps(ref, sha)
 	if err != nil {
 		node.Type = ActionTypeUnknown
 		fmt.Fprintf(os.Stderr, "    Resolved %s -> %s (type: unknown, error fetching config: %v)\n", ref.FullName(), sha[:12], err)
 		return node, nil
 	}
 	node.Type = actionType
+	if cHash != "" {
+		node.ContentSHA256 = cHash
+		node.ContentPath = cPath
+	}
 	fmt.Fprintf(os.Stderr, "    Resolved %s -> %s (type: %s)\n", ref.FullName(), sha[:12], actionType)
 
 	for _, depRef := range deps {
@@ -186,14 +203,39 @@ func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, erro
 	r.visited[ref.RawUses] = node
 
 	actionDir := filepath.Join(r.basePath, ref.LocalPath)
-	meta, err := parser.ParseMetadata(filepath.Join(actionDir, "action.yml"))
-	if err != nil {
-		meta, err = parser.ParseMetadata(filepath.Join(actionDir, "action.yaml"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "    Resolved %s (type: unknown, could not read action metadata: %v)\n", ref.LocalPath, err)
-			return node, nil
+
+	var meta *models.Metadata
+	var raw []byte
+	var contentRelPath string
+
+	localRoot := filepath.ToSlash(strings.TrimPrefix(ref.LocalPath, "./"))
+	for _, filename := range []string{"action.yml", "action.yaml"} {
+		absMeta := filepath.Join(actionDir, filename)
+		data, readErr := os.ReadFile(absMeta)
+		if readErr != nil {
+			continue
 		}
+		m, parseErr := parser.ParseMetadataFromBytes(data, absMeta)
+		if parseErr != nil {
+			continue
+		}
+		meta = m
+		raw = data
+		if localRoot == "" || localRoot == "." {
+			contentRelPath = filepath.ToSlash(filename)
+		} else {
+			contentRelPath = filepath.ToSlash(filepath.Join(localRoot, filename))
+		}
+		break
 	}
+
+	if meta == nil {
+		fmt.Fprintf(os.Stderr, "    Resolved %s (type: unknown, could not read action metadata)\n", ref.LocalPath)
+		return node, nil
+	}
+
+	node.ContentSHA256 = sha256Hex(raw)
+	node.ContentPath = contentRelPath
 
 	using := strings.ToLower(meta.Runs.Using)
 
@@ -230,25 +272,25 @@ func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, erro
 	return node, nil
 }
 
-func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, ActionType, error) {
+func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, ActionType, string, string, error) {
 	isReusableWorkflow := strings.HasSuffix(ref.Path, ".yml") || strings.HasSuffix(ref.Path, ".yaml")
 
 	if isReusableWorkflow {
-		wf, err := r.client.FetchWorkflowConfig(ref.Owner, ref.Repo, sha, ref.Path)
+		wf, raw, relPath, err := r.client.FetchWorkflowConfig(ref.Owner, ref.Repo, sha, ref.Path)
 		if err != nil {
-			return nil, ActionTypeReusable, err
+			return nil, ActionTypeReusable, "", "", err
 		}
 		deps := ExtractActionRefs(wf)
-		return deps, ActionTypeReusable, nil
+		hash := sha256Hex(raw)
+		return deps, ActionTypeReusable, hash, relPath, nil
 	}
 
-	meta, err := r.client.FetchActionConfig(ref.Owner, ref.Repo, sha, ref.Path)
-	if err != nil {
-		return nil, ActionTypeUnknown, err
-	}
+	meta, raw, relPath := r.client.FetchActionConfig(ref.Owner, ref.Repo, sha, ref.Path)
 	if meta == nil {
-		return nil, ActionTypeUnknown, nil
+		return nil, ActionTypeUnknown, "", "", nil
 	}
+
+	hash := sha256Hex(raw)
 
 	using := strings.ToLower(meta.Runs.Using)
 
@@ -269,16 +311,16 @@ func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, A
 				deps = append(deps, parsed)
 			}
 		}
-		return deps, ActionTypeComposite, nil
+		return deps, ActionTypeComposite, hash, relPath, nil
 
 	case strings.HasPrefix(using, "node"):
-		return nil, ActionTypeNode, nil
+		return nil, ActionTypeNode, hash, relPath, nil
 
 	case using == "docker":
-		return nil, ActionTypeDocker, nil
+		return nil, ActionTypeDocker, hash, relPath, nil
 
 	default:
-		return nil, ActionTypeUnknown, nil
+		return nil, ActionTypeUnknown, hash, relPath, nil
 	}
 }
 

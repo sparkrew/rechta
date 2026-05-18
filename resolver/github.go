@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -112,11 +113,13 @@ func (c *GitHubClient) resolveBranch(owner, repo, branch string) (string, error)
 }
 
 // FetchActionConfig fetches and parses action.yml/action.yaml from a repository at a given SHA.
-// For paths ending in .yml/.yaml (reusable workflows), it returns nil so the caller
+// For paths ending in .yml/.yaml (reusable workflows), it returns zero values so the caller
 // can fall through to FetchWorkflowConfig.
-func (c *GitHubClient) FetchActionConfig(owner, repo, sha string, path string) (*models.Metadata, error) {
+// On success, raw is the exact decoded bytes of the metadata file used and contentRelPath is
+// the repository-relative path to that file (forward slashes).
+func (c *GitHubClient) FetchActionConfig(owner, repo, sha string, path string) (meta *models.Metadata, raw []byte, contentRelPath string) {
 	if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-		return nil, nil
+		return nil, nil, ""
 	}
 
 	for _, filename := range []string{"action.yml", "action.yaml"} {
@@ -130,28 +133,29 @@ func (c *GitHubClient) FetchActionConfig(owner, repo, sha string, path string) (
 			continue
 		}
 
-		meta, err := parser.ParseMetadataFromBytes(data, fmt.Sprintf("%s/%s@%s/%s", owner, repo, sha[:12], filePath))
+		m, err := parser.ParseMetadataFromBytes(data, fmt.Sprintf("%s/%s@%s/%s", owner, repo, sha[:12], filePath))
 		if err != nil {
 			continue
 		}
-		return meta, nil
+		return m, data, filepath.ToSlash(filePath)
 	}
 
-	return nil, nil
+	return nil, nil, ""
 }
 
 // FetchWorkflowConfig fetches and parses a reusable workflow YAML from a repository.
-func (c *GitHubClient) FetchWorkflowConfig(owner, repo, sha, path string) (*models.Workflow, error) {
+// raw is the decoded file bytes used for hashing; contentRelPath is repo-relative (forward slashes).
+func (c *GitHubClient) FetchWorkflowConfig(owner, repo, sha, path string) (*models.Workflow, []byte, string, error) {
 	data, err := c.fetchFileContent(owner, repo, sha, path)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", err
 	}
 
 	wf, err := parser.ParseWorkflowFromBytes(data, fmt.Sprintf("%s/%s@%s/%s", owner, repo, sha[:12], path))
 	if err != nil {
-		return nil, err
+		return nil, nil, filepath.ToSlash(path), err
 	}
-	return wf, nil
+	return wf, data, filepath.ToSlash(path), nil
 }
 
 func (c *GitHubClient) fetchFileContent(owner, repo, sha, path string) ([]byte, error) {

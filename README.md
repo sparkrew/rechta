@@ -143,6 +143,12 @@ When using `-f`, local action references (`./path`) are listed but not resolved 
 rechta -w .github/workflows
 ```
 
+Each dependency object can also include:
+
+- `content_sha256` — lowercase hex SHA-256 of the YAML file used for analysis (the same bytes returned by the GitHub API or read from disk): `action.yml` / `action.yaml` for actions, or the workflow file path for reusable workflows. Omitted when the file could not be loaded.
+- `content_path` — repository-relative path to that file (forward slashes), e.g. `action.yml`, `my-action/action.yml`, `.github/workflows/reuse.yml`. For local actions resolved from disk, the path is relative to the directory mode base path (`.`).
+- For **node** actions, only the metadata file is hashed (`action.yml`), not `index.js` or other runtime sources.
+
 ```json
 {
   "workflows": [
@@ -157,7 +163,9 @@ rechta -w .github/workflows
             "uses": "actions/checkout@v4"
           },
           "sha": "34e114876b0b...",
-          "type": "node"
+          "type": "node",
+          "content_sha256": "a1b2c3...",
+          "content_path": "action.yml"
         },
         {
           "ref": {
@@ -167,6 +175,8 @@ rechta -w .github/workflows
           },
           "sha": "",
           "type": "composite",
+          "content_sha256": "...",
+          "content_path": "my-local-action/action.yml",
           "dependencies": [...]
         }
       ]
@@ -216,9 +226,10 @@ rechta -w /path/to/any-repo/.github/workflows
 3. For each remote reference, resolves the tag/branch to a commit SHA via the GitHub Git Data API
 4. Fetches the action's `action.yml` (or reusable workflow YAML) at that SHA via the Contents API
 5. For each local reference (`./path`), reads `action.yml`/`action.yaml` from the filesystem
-6. If the action is composite, extracts nested `uses:` references from its steps and recurses
-7. Deduplicates by raw `uses:` string across all workflows
-8. Enforces a configurable depth limit (default 10, matching the GitHub Actions runner)
+6. Records `content_sha256` (SHA-256 of those YAML bytes) and `content_path` (repo-relative file path used)
+7. If the action is composite, extracts nested `uses:` references from its steps and recurses
+8. Deduplicates by raw `uses:` string across all workflows
+9. Enforces a configurable depth limit (default 10, matching the GitHub Actions runner)
 
 ## Project structure
 

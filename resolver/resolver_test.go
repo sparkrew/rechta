@@ -381,6 +381,29 @@ runs:
 	if root.Children[0].SHA != cacheSHA {
 		t.Errorf("child[0] SHA = %q", root.Children[0].SHA)
 	}
+
+	cacheYAML := []byte("name: Cache\nruns:\n  using: node20\n  main: index.js\n")
+	setupYAML := []byte("name: Setup Node\nruns:\n  using: node20\n  main: index.js\n")
+
+	if root.ContentSHA256 != sha256Hex([]byte(actionYAML)) {
+		t.Errorf("root content_sha256 mismatch")
+	}
+	if root.ContentPath != "action.yml" {
+		t.Errorf("root content_path = %q, want action.yml", root.ContentPath)
+	}
+	if root.Children[0].ContentSHA256 != sha256Hex(cacheYAML) {
+		t.Errorf("child[0] content_sha256 mismatch")
+	}
+	if root.Children[0].ContentPath != "action.yml" {
+		t.Errorf("child[0] content_path = %q", root.Children[0].ContentPath)
+	}
+	if root.Children[1].ContentSHA256 != sha256Hex(setupYAML) {
+		t.Errorf("child[1] content_sha256 mismatch")
+	}
+	if root.Children[1].ContentPath != "action.yml" {
+		t.Errorf("child[1] content_path = %q", root.Children[1].ContentPath)
+	}
+
 	if root.Children[1].Ref.RawUses != "actions/setup-node@v4" {
 		t.Errorf("child[1] = %q", root.Children[1].Ref.RawUses)
 	}
@@ -441,6 +464,76 @@ func TestResolve_Deduplication(t *testing.T) {
 	}
 	if callCount != 1 {
 		t.Errorf("expected 1 API call for tag resolution, got %d", callCount)
+	}
+	wantYAML := []byte("name: Checkout\nruns:\n  using: node20\n  main: index.js\n")
+	wantHash := sha256Hex(wantYAML)
+	got := trees[0].Dependencies[0]
+	if got.ContentSHA256 != wantHash {
+		t.Errorf("ContentSHA256 = %q, want %q", got.ContentSHA256, wantHash)
+	}
+	if got.ContentPath != "action.yml" {
+		t.Errorf("ContentPath = %q, want action.yml", got.ContentPath)
+	}
+}
+
+func TestResolve_AlreadyVisited_IncludesContentHash(t *testing.T) {
+	configYAML := []byte("name: Checkout\nruns:\n  using: node20\n  main: index.js\n")
+	wantHash := sha256Hex(configYAML)
+	checkoutSHA := "dddd000000000000000000000000000000000000"
+
+	server, client := newMockGitHub(t, map[string]http.HandlerFunc{
+		"/repos/actions/checkout/git/refs/tags/v4": func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, jsonMarshal(gitRef{Object: struct {
+				SHA  string `json:"sha"`
+				Type string `json:"type"`
+			}{checkoutSHA, "commit"}}))
+		},
+		"/repos/actions/checkout/contents/action.yml": func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, jsonMarshal(fileContent{
+				Encoding: "base64",
+				Content:  b64Encode(string(configYAML)),
+			}))
+		},
+	})
+	defer server.Close()
+
+	resolver := NewResolver(client, 10, ".")
+	wfs := []*models.Workflow{
+		{
+			Path: "first.yml",
+			Jobs: models.Jobs{{ID: "a", Steps: models.Steps{{Uses: "actions/checkout@v4"}}}},
+		},
+		{
+			Path: "second.yml",
+			Jobs: models.Jobs{{ID: "b", Steps: models.Steps{{Uses: "actions/checkout@v4"}}}},
+		},
+	}
+
+	trees, err := resolver.ResolveAll(wfs)
+	if err != nil {
+		t.Fatalf("ResolveAll error: %v", err)
+	}
+
+	if len(trees) != 2 {
+		t.Fatalf("want 2 trees, got %d", len(trees))
+	}
+
+	first := trees[0].Dependencies[0]
+	second := trees[1].Dependencies[0]
+	if second.AlreadyVisited != true {
+		t.Fatalf("want already_visited on second tree")
+	}
+	if first.ContentSHA256 != wantHash {
+		t.Errorf("first content_sha256 = %q", first.ContentSHA256)
+	}
+	if second.ContentSHA256 != wantHash {
+		t.Errorf("stub content_sha256 = %q, want %q", second.ContentSHA256, wantHash)
+	}
+	if first.ContentPath != "action.yml" || second.ContentPath != "action.yml" {
+		t.Errorf("first path %q second path %q", first.ContentPath, second.ContentPath)
+	}
+	if second.Children != nil && len(second.Children) > 0 {
+		t.Error("already_visited stub should have no nested children resolved again")
 	}
 }
 
@@ -580,6 +673,12 @@ func TestResolve_LocalNodeAction(t *testing.T) {
 	if dep.SHA != "" {
 		t.Errorf("dep.SHA = %q, want empty for local", dep.SHA)
 	}
+	if dep.ContentSHA256 != sha256Hex(actionYAML) {
+		t.Errorf("dep.ContentSHA256 mismatch")
+	}
+	if dep.ContentPath != "my-action/action.yml" {
+		t.Errorf("dep.ContentPath = %q, want my-action/action.yml", dep.ContentPath)
+	}
 }
 
 func TestResolve_LocalCompositeAction(t *testing.T) {
@@ -637,6 +736,12 @@ runs:
 	if root.Type != ActionTypeComposite {
 		t.Errorf("root.Type = %q, want composite", root.Type)
 	}
+	if root.ContentPath != "my-composite/action.yml" {
+		t.Errorf("root.ContentPath = %q", root.ContentPath)
+	}
+	if root.ContentSHA256 != sha256Hex(actionYAML) {
+		t.Errorf("root content hash mismatch")
+	}
 	if len(root.Children) != 1 {
 		t.Fatalf("expected 1 child, got %d", len(root.Children))
 	}
@@ -650,6 +755,12 @@ runs:
 	}
 	if child.Type != ActionTypeNode {
 		t.Errorf("child.Type = %q, want %q", child.Type, ActionTypeNode)
+	}
+	if child.ContentPath != "inner-action/action.yml" {
+		t.Errorf("child.ContentPath = %q", child.ContentPath)
+	}
+	if child.ContentSHA256 != sha256Hex(innerYAML) {
+		t.Errorf("child content hash mismatch")
 	}
 }
 

@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>rechta — dependency tree</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --surface: #141b26;
+      --surface-2: #1c2636;
+      --border: #2a3548;
+      --line: #3d5168;
+      --text: #e8eef5;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.35);
+      --node: #3fb950;
+      --composite: #d2a8ff;
+      --reusable: #f0883e;
+      --docker: #6e7681;
+      --local: #79c0ff;
+      --visited: #484f58;
+      --root: #e3b341;
+      --grid-dot: rgba(88, 166, 255, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--surface) 0%, rgba(20, 27, 38, 0.95) 100%);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    header h1 {
+      margin: 0 0 0.2rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    header p { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1.1rem;
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .badge-type-node { background: rgba(63, 185, 80, 0.2); color: var(--node); }
+    .badge-type-composite { background: rgba(210, 168, 255, 0.2); color: var(--composite); }
+    .badge-type-reusable-workflow { background: rgba(240, 136, 62, 0.2); color: var(--reusable); }
+    .badge-type-docker { background: rgba(110, 118, 129, 0.3); color: var(--docker); }
+    .badge-type-unknown { background: rgba(139, 148, 158, 0.2); color: var(--muted); }
+    .badge-type-workflow { background: rgba(227, 179, 65, 0.2); color: var(--root); }
+    .badge-sha { background: rgba(88, 166, 255, 0.15); color: var(--accent); font-family: ui-monospace, monospace; font-weight: 500; text-transform: none; }
+    .badge-visited { background: rgba(72, 79, 88, 0.4); color: var(--muted); }
+    .tabs-bar {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 0 0 auto;
+      padding: 0.6rem 1rem;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      background: transparent;
+      color: var(--muted);
+      font-family: ui-monospace, monospace;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+      max-width: 14rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.15s, background 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.03); }
+    .tab-btn[aria-selected="true"] {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: var(--bg);
+    }
+    main {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .tab-panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .tab-panel.active { display: flex; }
+    .tab-panel-path {
+      font-family: ui-monospace, monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      padding: 0.45rem 1rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: rgba(20, 27, 38, 0.6);
+      flex-shrink: 0;
+    }
+
+    /* Map-style pan/zoom canvas */
+    .map-shell {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .map-viewport {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      background-color: var(--bg);
+      background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .map-viewport.is-dragging { cursor: grabbing; }
+    .map-viewport.is-dragging .node-box { pointer-events: none; }
+    .map-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+      padding: 4rem;
+    }
+    .map-canvas::after { content: ""; display: table; clear: both; }
+
+    .map-toolbar {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .map-toolbar-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.35rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(20, 27, 38, 0.82);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+    }
+    .map-btn {
+      width: 2.1rem;
+      height: 2.1rem;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .map-btn:hover {
+      background: rgba(88, 166, 255, 0.12);
+      border-color: rgba(88, 166, 255, 0.45);
+    }
+    .map-btn:active { transform: scale(0.94); }
+    .map-btn-label {
+      font-size: 0.625rem;
+      color: var(--muted);
+      text-align: center;
+      font-family: ui-monospace, monospace;
+      pointer-events: none;
+    }
+    .map-hint {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(20, 27, 38, 0.75);
+      backdrop-filter: blur(10px);
+      color: var(--muted);
+      font-size: 0.6875rem;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0.85;
+    }
+    .map-minimap {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      width: 180px;
+      height: 120px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(10, 14, 20, 0.88);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+      z-index: 20;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    .map-minimap-label {
+      position: absolute;
+      top: 0.35rem;
+      left: 0.5rem;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .map-minimap-content {
+      position: absolute;
+      inset: 0;
+      transform-origin: 0 0;
+      pointer-events: none;
+      opacity: 0.45;
+    }
+    .map-minimap-content .node-box {
+      min-width: 0 !important;
+      max-width: none !important;
+      padding: 0.15rem 0.25rem !important;
+      font-size: 0.5rem;
+      box-shadow: none !important;
+    }
+    .map-minimap-content .node-box .label { font-size: 0.45rem !important; }
+    .map-minimap-content .badges,
+    .map-minimap-content .node-actions,
+    .map-minimap-content .details-panel { display: none !important; }
+    .map-minimap-viewport {
+      position: absolute;
+      border: 2px solid var(--accent);
+      background: rgba(88, 166, 255, 0.12);
+      box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.25);
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 3;
+      transition: box-shadow 0.2s;
+    }
+    .map-minimap:hover .map-minimap-viewport {
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .map-zoom-badge {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      padding: 0.3rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(20, 27, 38, 0.75);
+      backdrop-filter: blur(8px);
+      font-family: ui-monospace, monospace;
+      font-size: 0.6875rem;
+      color: var(--muted);
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    /* Top-down tree graph (org-chart connectors) */
+    ul.graph-tree,
+    ul.graph-tree ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: table;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    ul.graph-tree ul {
+      padding-top: 2rem;
+      position: relative;
+    }
+    ul.graph-tree ul::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      border-left: 2px solid var(--line);
+      width: 0;
+      height: 2rem;
+      transition: border-color 0.2s;
+    }
+    ul.graph-tree li {
+      float: left;
+      text-align: center;
+      list-style: none;
+      position: relative;
+      padding: 2rem 0.85rem 0;
+    }
+    ul.graph-tree > li { padding-top: 0; }
+    ul.graph-tree li::before,
+    ul.graph-tree li::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 50%;
+      border-top: 2px solid var(--line);
+      width: 50%;
+      height: 2rem;
+    }
+    ul.graph-tree li::after {
+      right: auto;
+      left: 50%;
+      border-left: 2px solid var(--line);
+    }
+    ul.graph-tree li:only-child::before,
+    ul.graph-tree li:only-child::after { display: none; }
+    ul.graph-tree li:first-child::before,
+    ul.graph-tree li:last-child::after { border: 0 none; }
+    ul.graph-tree ul.collapsed { display: none; }
+
+    .graph-node {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      vertical-align: top;
+    }
+    .node-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.6rem 0.85rem;
+      min-width: 11rem;
+      max-width: 18rem;
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      background: linear-gradient(145deg, var(--surface-2) 0%, rgba(28, 38, 54, 0.95) 100%);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      position: relative;
+      z-index: 1;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .node-box.root {
+      border-color: rgba(227, 179, 65, 0.55);
+      background: linear-gradient(145deg, rgba(227, 179, 65, 0.14) 0%, rgba(227, 179, 65, 0.06) 100%);
+      min-width: 13rem;
+      box-shadow: 0 4px 20px rgba(227, 179, 65, 0.15);
+    }
+    .node-box:hover {
+      border-color: var(--accent);
+      box-shadow: 0 6px 24px rgba(88, 166, 255, 0.2);
+      transform: translateY(-2px);
+    }
+    .node-box.visited { border-style: dashed; border-color: var(--visited); opacity: 0.88; }
+    .node-box.type-composite { border-color: rgba(210, 168, 255, 0.5); }
+    .node-box.type-reusable-workflow { border-color: rgba(240, 136, 62, 0.5); }
+    .node-box.type-local { border-color: rgba(121, 192, 255, 0.5); }
+    .node-box .label {
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      word-break: break-word;
+      text-align: center;
+    }
+    .node-box .badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.25rem;
+    }
+    .node-box .node-actions {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.15rem;
+    }
+    button.toggle, button.details-btn, button.copy-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 5px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.6875rem;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    button.toggle:hover, button.details-btn:hover, button.copy-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .details-panel {
+      display: none;
+      margin-top: 0.5rem;
+      padding: 0.65rem;
+      min-width: 14rem;
+      max-width: 22rem;
+      background: rgba(20, 27, 38, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.75rem;
+      text-align: left;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+    }
+    .details-panel.open { display: block; }
+    .details-panel dl { margin: 0; }
+    .details-panel dt { color: var(--muted); font-size: 0.6875rem; margin-top: 0.4rem; }
+    .details-panel dt:first-child { margin-top: 0; }
+    .details-panel dd {
+      margin: 0.1rem 0 0;
+      font-family: ui-monospace, monospace;
+      word-break: break-all;
+      font-size: 0.6875rem;
+    }
+    .details-panel a { color: var(--accent); }
+    .details-actions { margin-top: 0.4rem; display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GitHub Actions dependency tree</h1>
+    <p>Generated by <strong>rechta</strong> — interactive map view, one tab per workflow</p>
+    <div class="legend">
+      <span class="legend-item"><span class="badge badge-type-workflow">workflow</span> Root</span>
+      <span class="legend-item"><span class="badge badge-type-node">node</span> JavaScript action</span>
+      <span class="legend-item"><span class="badge badge-type-composite">composite</span> Composite</span>
+      <span class="legend-item"><span class="badge badge-type-reusable-workflow">reusable</span> Reusable workflow</span>
+      <span class="legend-item"><span class="badge badge-visited">*</span> Deduplicated</span>
+    </div>
+  </header>
+  <div class="tabs-bar" id="tabs" role="tablist" hidden></div>
+  <main id="main"></main>
+  <script type="application/json" id="rechta-data">{{.JSON}}</script>
+  <script>
+(function () {
+  const payload = JSON.parse(document.getElementById('rechta-data').textContent);
+  const workflows = payload.workflows || [];
+  const tabsEl = document.getElementById('tabs');
+  const mainEl = document.getElementById('main');
+
+  const MIN_SCALE = 0.15;
+  const MAX_SCALE = 2.5;
+  const ZOOM_STEP = 1.15;
+
+  function tabId(index) { return 'tab-panel-' + index; }
+
+  function shortName(path) {
+    const parts = path.replace(/\\/g, '/').split('/');
+    return parts[parts.length - 1] || path;
+  }
+
+  function shortSHA(sha) {
+    if (!sha) return '';
+    return sha.length > 12 ? sha.slice(0, 12) : sha;
+  }
+
+  function labelFor(node) {
+    const ref = node.ref || {};
+    if (ref.is_local) return ref.local_path || ref.uses || './local';
+    return ref.uses || [ref.owner, ref.repo, ref.path].filter(Boolean).join('/');
+  }
+
+  function githubURL(node) {
+    const ref = node.ref || {};
+    if (ref.is_local || !ref.owner || !ref.repo || !node.sha) return null;
+    return 'https://github.com/' + ref.owner + '/' + ref.repo + '/tree/' + node.sha;
+  }
+
+  function badgeClass(type) {
+    const t = (type || 'unknown').toLowerCase();
+    if (t === 'composite') return 'badge-type-composite';
+    if (t === 'reusable-workflow') return 'badge-type-reusable-workflow';
+    if (t === 'node') return 'badge-type-node';
+    if (t === 'docker') return 'badge-type-docker';
+    if (t === 'workflow') return 'badge-type-workflow';
+    return 'badge-type-unknown';
+  }
+
+  function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(function () {
+      const prev = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = prev; }, 1200);
+    });
+  }
+
+  function isInteractiveTarget(el) {
+    if (!el || !el.closest) return false;
+    return !!el.closest('button, a, input, textarea, select, .details-panel');
+  }
+
+  function PanZoomMap(viewport, canvas, minimapEl, zoomBadgeEl) {
+    this.viewport = viewport;
+    this.canvas = canvas;
+    this.minimapEl = minimapEl;
+    this.minimapContent = minimapEl.querySelector('.map-minimap-content');
+    this.minimapViewport = minimapEl.querySelector('.map-minimap-viewport');
+    this.zoomBadgeEl = zoomBadgeEl;
+
+    this.scale = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.dragging = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.panStartX = 0;
+    this.panStartY = 0;
+    this.pointers = new Map();
+    this.lastPinchDist = 0;
+
+    this._onPointerDown = this.onPointerDown.bind(this);
+    this._onPointerMove = this.onPointerMove.bind(this);
+    this._onPointerUp = this.onPointerUp.bind(this);
+    this._onWheel = this.onWheel.bind(this);
+    this._onDblClick = this.onDblClick.bind(this);
+    this._onMinimapDown = this.onMinimapDown.bind(this);
+    this._onResize = this.updateMinimap.bind(this);
+
+    viewport.addEventListener('pointerdown', this._onPointerDown);
+    viewport.addEventListener('pointermove', this._onPointerMove);
+    viewport.addEventListener('pointerup', this._onPointerUp);
+    viewport.addEventListener('pointercancel', this._onPointerUp);
+    viewport.addEventListener('wheel', this._onWheel, { passive: false });
+    viewport.addEventListener('dblclick', this._onDblClick);
+    minimapEl.addEventListener('pointerdown', this._onMinimapDown);
+    window.addEventListener('resize', this._onResize);
+
+    this.syncMinimapClone();
+    this.fitToView();
+  }
+
+  PanZoomMap.prototype.destroy = function () {
+    this.viewport.removeEventListener('pointerdown', this._onPointerDown);
+    this.viewport.removeEventListener('pointermove', this._onPointerMove);
+    this.viewport.removeEventListener('pointerup', this._onPointerUp);
+    this.viewport.removeEventListener('pointercancel', this._onPointerUp);
+    this.viewport.removeEventListener('wheel', this._onWheel);
+    this.viewport.removeEventListener('dblclick', this._onDblClick);
+    this.minimapEl.removeEventListener('pointerdown', this._onMinimapDown);
+    window.removeEventListener('resize', this._onResize);
+  };
+
+  PanZoomMap.prototype.applyTransform = function () {
+    this.canvas.style.transform = 'translate(' + this.panX + 'px, ' + this.panY + 'px) scale(' + this.scale + ')';
+    if (this.zoomBadgeEl) {
+      this.zoomBadgeEl.textContent = Math.round(this.scale * 100) + '%';
+    }
+    this.updateMinimap();
+  };
+
+  PanZoomMap.prototype.getCanvasSize = function () {
+    return {
+      width: this.canvas.offsetWidth,
+      height: this.canvas.offsetHeight
+    };
+  };
+
+  PanZoomMap.prototype.fitToView = function (padding) {
+    padding = padding == null ? 80 : padding;
+    const vp = this.viewport.getBoundingClientRect();
+    const size = this.getCanvasSize();
+    if (!size.width || !size.height) return;
+
+    const scaleX = (vp.width - padding * 2) / size.width;
+    const scaleY = (vp.height - padding * 2) / size.height;
+    this.scale = Math.min(Math.max(Math.min(scaleX, scaleY), MIN_SCALE), MAX_SCALE);
+
+    this.panX = (vp.width - size.width * this.scale) / 2;
+    this.panY = (vp.height - size.height * this.scale) / 2;
+    this.applyTransform();
+  };
+
+  PanZoomMap.prototype.zoomAt = function (clientX, clientY, factor) {
+    const rect = this.viewport.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    const newScale = Math.min(Math.max(this.scale * factor, MIN_SCALE), MAX_SCALE);
+    const ratio = newScale / this.scale;
+
+    this.panX = mx - (mx - this.panX) * ratio;
+    this.panY = my - (my - this.panY) * ratio;
+    this.scale = newScale;
+    this.applyTransform();
+  };
+
+  PanZoomMap.prototype.panToCanvasPoint = function (canvasX, canvasY) {
+    const vp = this.viewport.getBoundingClientRect();
+    this.panX = vp.width / 2 - canvasX * this.scale;
+    this.panY = vp.height / 2 - canvasY * this.scale;
+    this.applyTransform();
+  };
+
+  PanZoomMap.prototype.syncMinimapClone = function () {
+    const clone = this.canvas.cloneNode(true);
+    clone.classList.remove('map-canvas');
+    clone.style.transform = '';
+    clone.style.padding = '0';
+    clone.style.position = 'static';
+    this.minimapContent.innerHTML = '';
+    this.minimapContent.appendChild(clone);
+  };
+
+  PanZoomMap.prototype.updateMinimap = function () {
+    const mmRect = this.minimapEl.getBoundingClientRect();
+    const size = this.getCanvasSize();
+    if (!size.width || !size.height || !mmRect.width) return;
+
+    const fitScale = Math.min(
+      (mmRect.width - 8) / size.width,
+      (mmRect.height - 8) / size.height
+    );
+    const offsetX = (mmRect.width - size.width * fitScale) / 2;
+    const offsetY = (mmRect.height - size.height * fitScale) / 2;
+
+    this.minimapContent.style.transform =
+      'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + fitScale + ')';
+
+    const vpRect = this.viewport.getBoundingClientRect();
+    const viewLeft = (-this.panX / this.scale) * fitScale + offsetX;
+    const viewTop = (-this.panY / this.scale) * fitScale + offsetY;
+    const viewW = (vpRect.width / this.scale) * fitScale;
+    const viewH = (vpRect.height / this.scale) * fitScale;
+
+    this.minimapViewport.style.left = viewLeft + 'px';
+    this.minimapViewport.style.top = viewTop + 'px';
+    this.minimapViewport.style.width = Math.max(viewW, 6) + 'px';
+    this.minimapViewport.style.height = Math.max(viewH, 6) + 'px';
+  };
+
+  PanZoomMap.prototype.onPointerDown = function (e) {
+    if (isInteractiveTarget(e.target)) return;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.viewport.setPointerCapture(e.pointerId);
+
+    if (this.pointers.size === 1) {
+      this.dragging = true;
+      this.dragStartX = e.clientX;
+      this.dragStartY = e.clientY;
+      this.panStartX = this.panX;
+      this.panStartY = this.panY;
+      this.viewport.classList.add('is-dragging');
+    } else if (this.pointers.size === 2) {
+      this.dragging = false;
+      this.lastPinchDist = this.getPinchDistance();
+    }
+  };
+
+  PanZoomMap.prototype.onPointerMove = function (e) {
+    if (!this.pointers.has(e.pointerId)) return;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (this.pointers.size === 2) {
+      const dist = this.getPinchDistance();
+      if (this.lastPinchDist > 0) {
+        const center = this.getPinchCenter();
+        this.zoomAt(center.x, center.y, dist / this.lastPinchDist);
+      }
+      this.lastPinchDist = dist;
+      return;
+    }
+
+    if (this.dragging) {
+      this.panX = this.panStartX + (e.clientX - this.dragStartX);
+      this.panY = this.panStartY + (e.clientY - this.dragStartY);
+      this.applyTransform();
+    }
+  };
+
+  PanZoomMap.prototype.onPointerUp = function (e) {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.lastPinchDist = 0;
+    if (this.pointers.size === 0) {
+      this.dragging = false;
+      this.viewport.classList.remove('is-dragging');
+    }
+    try { this.viewport.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+
+  PanZoomMap.prototype.onWheel = function (e) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    this.zoomAt(e.clientX, e.clientY, factor);
+  };
+
+  PanZoomMap.prototype.onDblClick = function (e) {
+    if (isInteractiveTarget(e.target)) return;
+    this.fitToView();
+  };
+
+  PanZoomMap.prototype.onMinimapDown = function (e) {
+    e.preventDefault();
+    const mmRect = this.minimapEl.getBoundingClientRect();
+    const size = this.getCanvasSize();
+    const fitScale = Math.min(
+      (mmRect.width - 8) / size.width,
+      (mmRect.height - 8) / size.height
+    );
+    const offsetX = (mmRect.width - size.width * fitScale) / 2;
+    const offsetY = (mmRect.height - size.height * fitScale) / 2;
+    const canvasX = (e.clientX - mmRect.left - offsetX) / fitScale;
+    const canvasY = (e.clientY - mmRect.top - offsetY) / fitScale;
+    this.panToCanvasPoint(canvasX, canvasY);
+  };
+
+  PanZoomMap.prototype.getPinchDistance = function () {
+    const pts = Array.from(this.pointers.values());
+    if (pts.length < 2) return 0;
+    const dx = pts[1].x - pts[0].x;
+    const dy = pts[1].y - pts[0].y;
+    return Math.hypot(dx, dy);
+  };
+
+  PanZoomMap.prototype.getPinchCenter = function () {
+    const pts = Array.from(this.pointers.values());
+    return {
+      x: (pts[0].x + pts[1].x) / 2,
+      y: (pts[0].y + pts[1].y) / 2
+    };
+  };
+
+  function buildDetailsPanel(node, isRoot) {
+    const panel = document.createElement('div');
+    panel.className = 'details-panel';
+    if (isRoot) {
+      const p = document.createElement('p');
+      p.style.margin = '0';
+      p.style.color = 'var(--muted)';
+      p.textContent = 'Direct and transitive dependencies for this workflow.';
+      panel.appendChild(p);
+      return panel;
+    }
+    const dl = document.createElement('dl');
+    function addField(name, value) {
+      if (!value) return;
+      const dt = document.createElement('dt');
+      dt.textContent = name;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    }
+    addField('uses', (node.ref && node.ref.uses) || labelFor(node));
+    addField('SHA', node.sha);
+    addField('Type', node.type);
+    addField('Content path', node.content_path);
+    addField('Content SHA-256', node.content_sha256);
+    if (node.already_visited) addField('Note', 'Already visited (deduplicated)');
+    const gh = githubURL(node);
+    if (gh) {
+      const dt = document.createElement('dt');
+      dt.textContent = 'Repository';
+      const dd = document.createElement('dd');
+      const a = document.createElement('a');
+      a.href = gh;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = gh;
+      dd.appendChild(a);
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    }
+    panel.appendChild(dl);
+    const actions = document.createElement('div');
+    actions.className = 'details-actions';
+    if (node.sha) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'copy-btn';
+      b.textContent = 'Copy SHA';
+      b.addEventListener('click', function () { copyText(node.sha, b); });
+      actions.appendChild(b);
+    }
+    if (node.content_sha256) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'copy-btn';
+      b.textContent = 'Copy hash';
+      b.addEventListener('click', function () { copyText(node.content_sha256, b); });
+      actions.appendChild(b);
+    }
+    if (actions.childNodes.length) panel.appendChild(actions);
+    return panel;
+  }
+
+  function buildNodeBox(node, options) {
+    options = options || {};
+    const isRoot = !!options.isRoot;
+    const deps = node.dependencies || node.children || [];
+    const hasChildren = !isRoot && deps.length > 0;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'graph-node';
+
+    const box = document.createElement('div');
+    box.className = 'node-box' + (isRoot ? ' root' : ' type-' + (node.type || 'unknown'));
+    if (!isRoot && node.ref && node.ref.is_local) box.classList.add('type-local');
+    if (node.already_visited) box.classList.add('visited');
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = isRoot ? shortName(node.path) : labelFor(node);
+    label.title = isRoot ? node.path : labelFor(node);
+    box.appendChild(label);
+
+    const badges = document.createElement('div');
+    badges.className = 'badges';
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'badge ' + badgeClass(isRoot ? 'workflow' : node.type);
+    typeBadge.textContent = isRoot ? 'workflow' : (node.type || 'unknown');
+    badges.appendChild(typeBadge);
+    if (!isRoot && node.sha) {
+      const shaBadge = document.createElement('span');
+      shaBadge.className = 'badge badge-sha';
+      shaBadge.title = node.sha;
+      shaBadge.textContent = shortSHA(node.sha);
+      badges.appendChild(shaBadge);
+    }
+    if (!isRoot && node.already_visited) {
+      const v = document.createElement('span');
+      v.className = 'badge badge-visited';
+      v.title = 'Deduplicated';
+      v.textContent = '*';
+      badges.appendChild(v);
+    }
+    box.appendChild(badges);
+
+    const actions = document.createElement('div');
+    actions.className = 'node-actions';
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className = 'details-btn';
+    detailsBtn.textContent = 'Details';
+    const detailsPanel = buildDetailsPanel(node, isRoot);
+    detailsBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      detailsPanel.classList.toggle('open');
+    });
+    actions.appendChild(detailsBtn);
+
+    let toggle = null;
+    if (hasChildren) {
+      toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'toggle';
+      toggle.textContent = '\u2212';
+      toggle.title = 'Collapse subtree';
+      actions.appendChild(toggle);
+    }
+    box.appendChild(actions);
+    wrap.appendChild(box);
+    wrap.appendChild(detailsPanel);
+
+    return { wrap: wrap, toggle: toggle, hasChildren: hasChildren };
+  }
+
+  function renderGraphNode(node) {
+    const li = document.createElement('li');
+    const built = buildNodeBox(node, { depth: 0 });
+    li.appendChild(built.wrap);
+
+    const deps = node.dependencies || node.children || [];
+    if (deps.length > 0) {
+      const childUl = document.createElement('ul');
+      deps.forEach(function (child) {
+        childUl.appendChild(renderGraphNode(child));
+      });
+      if (built.toggle) {
+        built.toggle.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const collapsed = childUl.classList.toggle('collapsed');
+          built.toggle.textContent = collapsed ? '+' : '\u2212';
+          built.toggle.title = collapsed ? 'Expand subtree' : 'Collapse subtree';
+          const map = li.closest('.map-shell');
+          if (map && map._panZoom) {
+            requestAnimationFrame(function () {
+              map._panZoom.syncMinimapClone();
+              map._panZoom.updateMinimap();
+            });
+          }
+        });
+      }
+      li.appendChild(childUl);
+    }
+    return li;
+  }
+
+  function createMapToolbar(actions) {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'map-toolbar';
+
+    const group = document.createElement('div');
+    group.className = 'map-toolbar-group';
+
+    function addBtn(label, title, onClick) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'map-btn';
+      btn.textContent = label;
+      btn.title = title;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        onClick();
+      });
+      group.appendChild(btn);
+    }
+
+    addBtn('+', 'Zoom in', actions.zoomIn);
+    addBtn('\u2212', 'Zoom out', actions.zoomOut);
+    addBtn('\u229EF', 'Fit to view', actions.fit);
+    addBtn('1', 'Reset zoom (100%)', actions.reset);
+
+    toolbar.appendChild(group);
+    return toolbar;
+  }
+
+  function renderWorkflowGraph(wf) {
+    const shell = document.createElement('div');
+    shell.className = 'map-shell';
+
+    const zoomBadge = document.createElement('div');
+    zoomBadge.className = 'map-zoom-badge';
+    zoomBadge.textContent = '100%';
+
+    const viewport = document.createElement('div');
+    viewport.className = 'map-viewport';
+
+    const canvas = document.createElement('div');
+    canvas.className = 'map-canvas';
+
+    const tree = document.createElement('ul');
+    tree.className = 'graph-tree';
+
+    const rootLi = document.createElement('li');
+    const rootBuilt = buildNodeBox({ path: wf.path }, { isRoot: true });
+    rootLi.appendChild(rootBuilt.wrap);
+
+    const deps = wf.dependencies || [];
+    if (deps.length > 0) {
+      const childUl = document.createElement('ul');
+      deps.forEach(function (node) {
+        childUl.appendChild(renderGraphNode(node));
+      });
+      rootLi.appendChild(childUl);
+    } else {
+      const empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = 'No action dependencies.';
+      rootLi.appendChild(empty);
+    }
+
+    tree.appendChild(rootLi);
+    canvas.appendChild(tree);
+    viewport.appendChild(canvas);
+
+    const hint = document.createElement('div');
+    hint.className = 'map-hint';
+    hint.textContent = 'Drag to pan \u00b7 Scroll to zoom \u00b7 Double-click to fit \u00b7 Click minimap to jump';
+
+    const minimap = document.createElement('div');
+    minimap.className = 'map-minimap';
+    minimap.innerHTML =
+      '<span class="map-minimap-label">Overview</span>' +
+      '<div class="map-minimap-content"></div>' +
+      '<div class="map-minimap-viewport"></div>';
+
+    shell.appendChild(viewport);
+
+    const toolbar = createMapToolbar({
+      zoomIn: function () {
+        const rect = viewport.getBoundingClientRect();
+        shell._panZoom.zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, ZOOM_STEP);
+      },
+      zoomOut: function () {
+        const rect = viewport.getBoundingClientRect();
+        shell._panZoom.zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / ZOOM_STEP);
+      },
+      fit: function () { shell._panZoom.fitToView(); },
+      reset: function () {
+        const rect = viewport.getBoundingClientRect();
+        const size = shell._panZoom.getCanvasSize();
+        shell._panZoom.scale = 1;
+        shell._panZoom.panX = (rect.width - size.width) / 2;
+        shell._panZoom.panY = (rect.height - size.height) / 2;
+        shell._panZoom.applyTransform();
+      }
+    });
+
+    shell.appendChild(toolbar);
+    shell.appendChild(zoomBadge);
+    shell.appendChild(hint);
+    shell.appendChild(minimap);
+
+    shell._initMap = function () {
+      if (shell._panZoom) {
+        shell._panZoom.updateMinimap();
+        return;
+      }
+      shell._panZoom = new PanZoomMap(viewport, canvas, minimap, zoomBadge);
+    };
+
+    return shell;
+  }
+
+  function activateTab(index) {
+    tabsEl.querySelectorAll('.tab-btn').forEach(function (btn, i) {
+      btn.setAttribute('aria-selected', i === index ? 'true' : 'false');
+    });
+    mainEl.querySelectorAll('.tab-panel').forEach(function (panel, i) {
+      const active = i === index;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+      if (active) {
+        const shell = panel.querySelector('.map-shell');
+        if (shell && shell._initMap) {
+          requestAnimationFrame(function () {
+            shell._initMap();
+          });
+        }
+      }
+    });
+  }
+
+  if (workflows.length === 0) {
+    mainEl.innerHTML = '<p class="empty">No workflows in this report.</p>';
+    return;
+  }
+
+  tabsEl.hidden = false;
+
+  workflows.forEach(function (wf, index) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab-btn';
+    btn.id = 'tab-' + index;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+    btn.setAttribute('aria-controls', tabId(index));
+    btn.title = wf.path;
+    btn.textContent = shortName(wf.path);
+    btn.addEventListener('click', function () { activateTab(index); });
+    tabsEl.appendChild(btn);
+
+    const panel = document.createElement('section');
+    panel.className = 'tab-panel' + (index === 0 ? ' active' : '');
+    panel.id = tabId(index);
+    panel.setAttribute('role', 'tabpanel');
+    panel.hidden = index !== 0;
+
+    const pathHint = document.createElement('p');
+    pathHint.className = 'tab-panel-path';
+    pathHint.textContent = wf.path;
+    panel.appendChild(pathHint);
+    panel.appendChild(renderWorkflowGraph(wf));
+    mainEl.appendChild(panel);
+  });
+
+  requestAnimationFrame(function () {
+    activateTab(0);
+  });
+})();
+  </script>
+</body>
+</html>

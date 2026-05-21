@@ -82,13 +82,15 @@ rechta [flags]
 | `--file` | `-f` | | Path to a single workflow file (overrides `-w`) |
 | `--output` | `-o` | | Save output to a file (see below) |
 | `--token` | `-t` | `$GITHUB_TOKEN` env | GitHub API token for authentication |
-| `--format` | | `json` | Output format: `txt` or `json` |
+| `--format` | | `json` | Output format: `txt`, `json`, or `html` |
 | `--depth` | | `10` | Maximum transitive dependency depth |
 
-The output is always printed to the terminal. The `-o` flag additionally saves it to a file:
+For `txt` and `json`, output is printed to the terminal. The `-o` flag additionally saves it to a file:
 
 - `-o` (no value): saves to `./dependency-tree.json` (or `./dependency-tree.txt` with `-format txt`)
 - `-o path/to/file.json`: saves to the specified path
+
+For `html`, output is written only to a file (nothing on stdout). The default path is `./dependency-tree.html`, or the path given with `-o`.
 
 ### Authentication
 
@@ -143,8 +145,9 @@ When using `-f`, local action references (`./path`) are listed but not resolved 
 rechta -w .github/workflows
 ```
 
-Each dependency object can also include:
+Each dependency object includes:
 
+- `already_visited` — `false` when the action was fully resolved in this run; `true` when the same `uses` reference was seen earlier (deduplicated stub from cache, no nested dependencies re-resolved).
 - `content_sha256` — lowercase hex SHA-256 of the YAML file used for analysis (the same bytes returned by the GitHub API or read from disk): `action.yml` / `action.yaml` for actions, or the workflow file path for reusable workflows. Omitted when the file could not be loaded.
 - `content_path` — repository-relative path to that file (forward slashes), e.g. `action.yml`, `my-action/action.yml`, `.github/workflows/reuse.yml`. For local actions resolved from disk, the path is relative to the directory mode base path (`.`).
 - For **node** actions, only the metadata file is hashed (`action.yml`), not `index.js` or other runtime sources.
@@ -162,9 +165,23 @@ Each dependency object can also include:
             "ref": "v4",
             "uses": "actions/checkout@v4"
           },
-          "sha": "34e114876b0b...",
+          "sha": "34e114876b0b11c390a56381ad16ebd13914f8d5",
           "type": "node",
-          "content_sha256": "a1b2c3...",
+          "already_visited": false,
+          "content_sha256": "5349b6eea0a1797a9a993c48db9d95b33d27ee1b6227ceced0c9cbf8e655c939",
+          "content_path": "action.yml"
+        },
+        {
+          "ref": {
+            "owner": "actions",
+            "repo": "setup-go",
+            "ref": "v5",
+            "uses": "actions/setup-go@v5"
+          },
+          "sha": "40f1582b2485089dde7abd97c1529aa768e1baff",
+          "type": "node",
+          "already_visited": true,
+          "content_sha256": "ebb00c4462c87740b2cd811941f13ecb03a9d1b417a0db745c5c2df858cdebea",
           "content_path": "action.yml"
         },
         {
@@ -175,6 +192,7 @@ Each dependency object can also include:
           },
           "sha": "",
           "type": "composite",
+          "already_visited": false,
           "content_sha256": "...",
           "content_path": "my-local-action/action.yml",
           "dependencies": [...]
@@ -185,6 +203,17 @@ Each dependency object can also include:
 }
 ```
 
+**Interactive HTML report:**
+
+```bash
+rechta -w .github/workflows -format html
+# writes ./dependency-tree.html — open in your browser
+
+rechta -w .github/workflows -format html -o reports/deps.html
+```
+
+The HTML file is self-contained (no CDN): collapsible trees per workflow, type badges, short SHAs, deduplication markers, and a details panel with full SHA, content hash, and GitHub links. Progress messages go to stderr.
+
 **Save output to a file:**
 
 ```bash
@@ -193,7 +222,7 @@ rechta -w .github/workflows -o tree.json      # saves to ./tree.json
 rechta -w .github/workflows -format txt -o    # saves to ./dependency-tree.txt
 ```
 
-Output is always printed to the terminal as well. You can also use shell redirection (`> file.json`) since progress messages go to stderr.
+For `txt` and `json`, output is always printed to the terminal as well. You can also use shell redirection (`> file.json`) since progress messages go to stderr.
 
 **Limit depth:**
 
@@ -228,7 +257,7 @@ rechta -w /path/to/any-repo/.github/workflows
 5. For each local reference (`./path`), reads `action.yml`/`action.yaml` from the filesystem
 6. Records `content_sha256` (SHA-256 of those YAML bytes) and `content_path` (repo-relative file path used)
 7. If the action is composite, extracts nested `uses:` references from its steps and recurses
-8. Deduplicates by raw `uses:` string across all workflows
+8. Deduplicates by raw `uses:` string across all workflows (`already_visited: true` on later occurrences)
 9. Enforces a configurable depth limit (default 10, matching the GitHub Actions runner)
 
 ## Project structure
@@ -236,7 +265,7 @@ rechta -w /path/to/any-repo/.github/workflows
 ```
 cmd/rechta/   -- CLI entry point
 resolver/     -- GitHub API client and recursive dependency resolution
-tree/         -- Text and JSON output formatters
+tree/         -- Text, JSON, and HTML output formatters
 models/       -- Go structs for workflow and action metadata YAML
 parser/       -- YAML parsing for workflow files and action metadata
 ```

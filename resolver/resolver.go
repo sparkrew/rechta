@@ -56,7 +56,7 @@ type DependencyNode struct {
 	SHA            string            `json:"sha"`
 	Type           ActionType        `json:"type"`
 	Children       []*DependencyNode `json:"dependencies,omitempty"`
-	AlreadyVisited bool              `json:"already_visited,omitempty"`
+	AlreadyVisited bool              `json:"already_visited"`
 	ContentSHA256  string            `json:"content_sha256,omitempty"`
 	ContentPath    string            `json:"content_path,omitempty"`
 }

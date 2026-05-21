@@ -14,13 +14,14 @@ import (
 const (
 	defaultOutputJSON = "dependency-tree.json"
 	defaultOutputTxt  = "dependency-tree.txt"
+	defaultOutputHTML = "dependency-tree.html"
 )
 
 func main() {
 	workflows := flag.String("workflows", ".github/workflows", "Path to workflows directory")
 	file := flag.String("file", "", "Path to a single workflow file (overrides -workflows)")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
-	format := flag.String("format", "json", "Output format: txt or json (default: json)")
+	format := flag.String("format", "json", "Output format: txt, json, or html (default: json)")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
 	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
@@ -28,7 +29,7 @@ func main() {
 
 	saveOutput := false
 	outputPath := ""
-	flag.Func("output", "Save output to file. Without a path: saves to ./dependency-tree.{json|txt}", func(val string) error {
+	flag.Func("output", "Save output to file. Without a path: saves to ./dependency-tree.{json|txt|html}", func(val string) error {
 		saveOutput = true
 		outputPath = val
 		return nil
@@ -46,6 +47,7 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format txt\n")
+		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format html\n")
 		fmt.Fprintf(os.Stderr, "  rechta -f .github/workflows/ci.yml\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o                              # saves to ./dependency-tree.json\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o my-tree.json                 # saves to ./my-tree.json\n")
@@ -61,8 +63,8 @@ func main() {
 		ghToken = os.Getenv("GITHUB_TOKEN")
 	}
 
-	if *format != "txt" && *format != "json" {
-		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (use \"txt\" or \"json\")\n", *format)
+	if *format != "txt" && *format != "json" && *format != "html" {
+		fmt.Fprintf(os.Stderr, "Error: unsupported format %q (use \"txt\", \"json\", or \"html\")\n", *format)
 		os.Exit(1)
 	}
 
@@ -120,41 +122,57 @@ func main() {
 	fmt.Fprintln(os.Stderr)
 
 	switch *format {
+	case "html":
+		path := outputPath
+		if path == "" {
+			path = defaultOutputHTML
+		}
+		if err := tree.PrintHTML(trees, path); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing HTML: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Wrote %s — open in your browser to explore the dependency tree.\n", path)
 	case "txt":
 		tree.PrintText(trees, os.Stdout)
+		if saveOutput {
+			writeTextOrJSONOutput(trees, *format, outputPath)
+		}
 	default:
 		if err := tree.PrintJSON(trees, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
 			os.Exit(1)
 		}
+		if saveOutput {
+			writeTextOrJSONOutput(trees, *format, outputPath)
+		}
+	}
+}
+
+func writeTextOrJSONOutput(trees []resolver.WorkflowTree, format, outputPath string) {
+	if outputPath == "" {
+		if format == "txt" {
+			outputPath = defaultOutputTxt
+		} else {
+			outputPath = defaultOutputJSON
+		}
 	}
 
-	if saveOutput {
-		if outputPath == "" {
-			if *format == "txt" {
-				outputPath = defaultOutputTxt
-			} else {
-				outputPath = defaultOutputJSON
-			}
-		}
+	f, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating output file %s: %v\n", outputPath, err)
+		os.Exit(1)
+	}
+	defer f.Close()
 
-		f, err := os.Create(outputPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating output file %s: %v\n", outputPath, err)
+	switch format {
+	case "txt":
+		tree.PrintText(trees, f)
+	default:
+		if err := tree.PrintJSON(trees, f); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 			os.Exit(1)
 		}
-		defer f.Close()
-
-		switch *format {
-		case "txt":
-			tree.PrintText(trees, f)
-		default:
-			if err := tree.PrintJSON(trees, f); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
-				os.Exit(1)
-			}
-		}
-
-		fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)
 	}
+
+	fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)
 }

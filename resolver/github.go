@@ -59,6 +59,18 @@ type fileContent struct {
 	Content  string `json:"content"`
 }
 
+// dirEntry is one item from a directory listing via the Contents API.
+type dirEntry struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Type string `json:"type"`
+}
+
+// repoInfo is the response from GET /repos/{owner}/{repo}.
+type repoInfo struct {
+	DefaultBranch string `json:"default_branch"`
+}
+
 // ResolveRef resolves a git ref (tag, branch, or SHA) to a full commit SHA.
 // Resolution order: if already a 40-char SHA, return as-is; try tag, then branch.
 func (c *GitHubClient) ResolveRef(owner, repo, ref string) (string, error) {
@@ -156,6 +168,39 @@ func (c *GitHubClient) FetchWorkflowConfig(owner, repo, sha, path string) (*mode
 		return nil, nil, filepath.ToSlash(path), err
 	}
 	return wf, data, filepath.ToSlash(path), nil
+}
+
+// GetDefaultBranch returns the repository's default branch name.
+func (c *GitHubClient) GetDefaultBranch(owner, repo string) (string, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s", c.baseURL, owner, repo)
+	var info repoInfo
+	if err := c.getJSON(url, &info); err != nil {
+		return "", err
+	}
+	if info.DefaultBranch == "" {
+		return "", fmt.Errorf("empty default branch for %s/%s", owner, repo)
+	}
+	return info.DefaultBranch, nil
+}
+
+// ListYAMLFiles lists .yml and .yaml files in a directory at a given ref SHA.
+func (c *GitHubClient) ListYAMLFiles(owner, repo, sha, dir string) ([]string, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/contents/%s?ref=%s", c.baseURL, owner, repo, dir, sha)
+	var entries []dirEntry
+	if err := c.getJSON(url, &entries); err != nil {
+		return nil, err
+	}
+
+	var paths []string
+	for _, e := range entries {
+		if e.Type != "file" {
+			continue
+		}
+		if strings.HasSuffix(e.Name, ".yml") || strings.HasSuffix(e.Name, ".yaml") {
+			paths = append(paths, e.Path)
+		}
+	}
+	return paths, nil
 }
 
 func (c *GitHubClient) fetchFileContent(owner, repo, sha, path string) ([]byte, error) {

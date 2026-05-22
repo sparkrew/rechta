@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/sparkrew/rechta/models"
 	"gopkg.in/yaml.v3"
@@ -19,13 +20,14 @@ func ParseWorkflow(filePath string) (*models.Workflow, error) {
 }
 
 // ParseWorkflowFromBytes parses a GitHub Actions workflow from raw YAML bytes.
-// path is stored in the returned Workflow.Path for downstream consumers.
+// path is stored in the returned Workflow.Path for downstream consumers
+// (always normalized to forward slashes).
 func ParseWorkflowFromBytes(data []byte, path string) (*models.Workflow, error) {
 	var w models.Workflow
 	if err := yaml.Unmarshal(data, &w); err != nil {
 		return nil, fmt.Errorf("unmarshaling workflow YAML: %w", err)
 	}
-	w.Path = path
+	w.Path = filepath.ToSlash(path)
 
 	if !w.IsValid() {
 		return nil, fmt.Errorf("invalid workflow %q: must have at least one event and one job", path)

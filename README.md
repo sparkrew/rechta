@@ -2,7 +2,7 @@
 
 A CLI tool that generates the full dependency tree of GitHub Actions workflows, including transitive dependencies from composite actions, reusable workflows, and local (internal) actions.
 
-Given a directory of workflow files (or a single workflow file), rechta resolves every `uses:` reference via the GitHub API and the local filesystem, detects composite actions and reusable workflows, recursively discovers their nested dependencies, and outputs a complete dependency tree.
+Given a directory of workflow files, a single workflow file, or a GitHub repository URL, rechta resolves every `uses:` reference via the GitHub API and the local filesystem, detects composite actions and reusable workflows, recursively discovers their nested dependencies, and outputs a complete dependency tree.
 
 ## Installation
 
@@ -80,6 +80,7 @@ rechta [flags]
 |------|-------|---------|-------------|
 | `--workflows` | `-w` | `.github/workflows` | Path to the workflows directory |
 | `--file` | `-f` | | Path to a single workflow file (overrides `-w`) |
+| `--url` | `-u` | | GitHub repository URL (overrides `-w` and `-f`) |
 | `--output` | `-o` | | Save output to a file (see below) |
 | `--token` | `-t` | `$GITHUB_TOKEN` env | GitHub API token for authentication |
 | `--format` | | `json` | Output format: `txt`, `json`, or `html` |
@@ -236,6 +237,29 @@ rechta -w .github/workflows -depth 1
 rechta -w /path/to/any-repo/.github/workflows
 ```
 
+**Analyze a remote GitHub repository (latest default branch):**
+
+```bash
+rechta -u https://github.com/owner/repo
+```
+
+**Analyze a specific version (tag, branch, or commit):**
+
+```bash
+rechta -u https://github.com/owner/repo/tree/v1.0.0
+rechta -u https://github.com/owner/repo/tree/main
+rechta -u https://github.com/owner/repo/commit/abc123def456...
+rechta -u https://github.com/owner/repo/releases/tag/v1.0.0
+```
+
+**Single workflow file from a remote repository:**
+
+```bash
+rechta -u https://github.com/owner/repo/blob/main/.github/workflows/ci.yml
+```
+
+When using `-u`, workflows and local actions (`./path`) are fetched via the GitHub API at the resolved commit SHA. A `GITHUB_TOKEN` is strongly recommended for remote analysis.
+
 ## What it detects
 
 | Action type | Resolved? | Transitive deps? |
@@ -246,7 +270,7 @@ rechta -w /path/to/any-repo/.github/workflows
 | Local actions (`./path`) | Yes (directory mode) | Yes -- reads `action.yml` from filesystem, walks transitive deps |
 | Docker actions (`docker://`) | Skipped | Skipped -- container registries have their own integrity mechanisms |
 
-**Note:** Local actions are only fully resolved in directory mode (`-w`). In single-file mode (`-f`), they appear in the tree but their metadata is not read (no filesystem context).
+**Note:** Local actions are fully resolved in directory mode (`-w`) and when using a GitHub URL (`-u`). In single-file mode (`-f`), they appear in the tree but their metadata is not read.
 
 ## How it works
 

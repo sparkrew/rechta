@@ -23,7 +23,7 @@ func TestParseWorkflow_ValidWorkflow(t *testing.T) {
 	if w.Name != "CI Pipeline" {
 		t.Fatalf("expected name 'CI Pipeline', got %q", w.Name)
 	}
-	if w.Path != testdataPath("valid_workflow.yml") {
+	if w.Path != filepath.ToSlash(testdataPath("valid_workflow.yml")) {
 		t.Fatalf("expected path set, got %q", w.Path)
 	}
 	if !w.IsValid() {

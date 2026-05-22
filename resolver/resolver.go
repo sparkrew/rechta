@@ -81,11 +81,18 @@ type Resolver struct {
 	visited  map[string]*DependencyNode
 	maxDepth int
 	basePath string
+	remote   *RemoteRepo
 }
 
 // NewResolver creates a resolver with the given GitHub client, depth limit,
 // and base path for resolving local action references.
 func NewResolver(client *GitHubClient, maxDepth int, basePath string) *Resolver {
+	return NewResolverWithRemote(client, maxDepth, basePath, nil)
+}
+
+// NewResolverWithRemote creates a resolver that resolves local actions from
+// the filesystem (basePath) or from a remote GitHub repo (remote).
+func NewResolverWithRemote(client *GitHubClient, maxDepth int, basePath string, remote *RemoteRepo) *Resolver {
 	if maxDepth <= 0 {
 		maxDepth = DefaultMaxDepth
 	}
@@ -94,6 +101,7 @@ func NewResolver(client *GitHubClient, maxDepth int, basePath string) *Resolver 
 		visited:  make(map[string]*DependencyNode),
 		maxDepth: maxDepth,
 		basePath: basePath,
+		remote:   remote,
 	}
 }
 
@@ -183,6 +191,10 @@ func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {
 }
 
 func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, error) {
+	if r.remote != nil {
+		return r.resolveLocalRemote(ref, depth)
+	}
+
 	if r.basePath == "" {
 		fmt.Fprintf(os.Stderr, "  Skipping local %s (no repo context)\n", ref.LocalPath)
 		node := &DependencyNode{
@@ -231,6 +243,62 @@ func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, erro
 
 	if meta == nil {
 		fmt.Fprintf(os.Stderr, "    Resolved %s (type: unknown, could not read action metadata)\n", ref.LocalPath)
+		return node, nil
+	}
+
+	node.ContentSHA256 = sha256Hex(raw)
+	node.ContentPath = contentRelPath
+
+	using := strings.ToLower(meta.Runs.Using)
+
+	switch {
+	case using == "composite":
+		node.Type = ActionTypeComposite
+		for _, step := range meta.Runs.Steps {
+			if step.Uses == "" || ShouldSkipRef(step.Uses) {
+				continue
+			}
+			var depRef ActionRef
+			if IsLocalRef(step.Uses) {
+				depRef = ParseLocalRef(step.Uses)
+			} else {
+				parsed, parseErr := ParseActionRef(step.Uses)
+				if parseErr != nil {
+					continue
+				}
+				depRef = parsed
+			}
+			child, childErr := r.resolve(depRef, depth+1)
+			if childErr != nil {
+				return nil, fmt.Errorf("resolving transitive dep %s of %s: %w", depRef.RawUses, ref.RawUses, childErr)
+			}
+			node.Children = append(node.Children, child)
+		}
+	case strings.HasPrefix(using, "node"):
+		node.Type = ActionTypeNode
+	case using == "docker":
+		node.Type = ActionTypeDocker
+	}
+
+	fmt.Fprintf(os.Stderr, "    Resolved %s (type: %s)\n", ref.LocalPath, node.Type)
+	return node, nil
+}
+
+func (r *Resolver) resolveLocalRemote(ref ActionRef, depth int) (*DependencyNode, error) {
+	fmt.Fprintf(os.Stderr, "  Resolving local %s (remote %s/%s@%s)...\n",
+		ref.LocalPath, r.remote.Owner, r.remote.Repo, r.remote.SHA[:12])
+
+	node := &DependencyNode{
+		Ref:  ref,
+		Type: ActionTypeUnknown,
+	}
+
+	r.visited[ref.RawUses] = node
+
+	actionPath := strings.TrimPrefix(ref.LocalPath, "./")
+	meta, raw, contentRelPath := r.client.FetchActionConfig(r.remote.Owner, r.remote.Repo, r.remote.SHA, actionPath)
+	if meta == nil {
+		fmt.Fprintf(os.Stderr, "    Resolved %s (type: unknown, could not fetch action metadata)\n", ref.LocalPath)
 		return node, nil
 	}
 

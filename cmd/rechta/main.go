@@ -20,11 +20,13 @@ const (
 func main() {
 	workflows := flag.String("workflows", ".github/workflows", "Path to workflows directory")
 	file := flag.String("file", "", "Path to a single workflow file (overrides -workflows)")
+	repoURL := flag.String("url", "", "GitHub repository URL (overrides -workflows and -file)")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
 	format := flag.String("format", "json", "Output format: txt, json, or html (default: json)")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
 	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
+	flag.StringVar(repoURL, "u", "", "GitHub repository URL (shorthand)")
 	flag.StringVar(token, "t", "", "GitHub token (shorthand)")
 
 	saveOutput := false
@@ -49,11 +51,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format txt\n")
 		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -format html\n")
 		fmt.Fprintf(os.Stderr, "  rechta -f .github/workflows/ci.yml\n")
+		fmt.Fprintf(os.Stderr, "  rechta -u https://github.com/owner/repo\n")
+		fmt.Fprintf(os.Stderr, "  rechta -u https://github.com/owner/repo/tree/v1.0.0\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o                              # saves to ./dependency-tree.json\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o my-tree.json                 # saves to ./my-tree.json\n")
 		fmt.Fprintf(os.Stderr, "\nSet GITHUB_TOKEN to avoid API rate limits (60 req/hr unauthenticated).\n")
-		fmt.Fprintf(os.Stderr, "\nNote: local action references (./path) are only resolved when using\n")
-		fmt.Fprintf(os.Stderr, "directory mode (-w), not single-file mode (-f).\n")
+		fmt.Fprintf(os.Stderr, "\nNote: local action references (./path) are resolved in directory mode (-w)\n")
+		fmt.Fprintf(os.Stderr, "and when fetching from a GitHub URL (-u), not in single-file mode (-f).\n")
 	}
 
 	flag.Parse()
@@ -70,8 +74,26 @@ func main() {
 
 	var wfs []*models.Workflow
 	var basePath string
+	var remote *resolver.RemoteRepo
 
-	if *file != "" {
+	client := resolver.NewGitHubClient(ghToken, 10)
+
+	if *repoURL != "" {
+		if *file != "" {
+			fmt.Fprintf(os.Stderr, "Error: -url cannot be used with -file\n")
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "Fetching workflows from %s...\n", *repoURL)
+		var err error
+		wfs, remote, err = resolver.LoadWorkflowsFromURL(client, *repoURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading workflows from URL: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Fetched %d workflow file(s) from %s/%s@%s\n\n",
+			len(wfs), remote.Owner, remote.Repo, remote.SHA[:12])
+	} else if *file != "" {
 		wf, err := parser.ParseWorkflow(*file)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing workflow %s: %v\n", *file, err)
@@ -110,8 +132,12 @@ func main() {
 		basePath = "."
 	}
 
-	client := resolver.NewGitHubClient(ghToken, 10)
-	res := resolver.NewResolver(client, *depth, basePath)
+	var res *resolver.Resolver
+	if remote != nil {
+		res = resolver.NewResolverWithRemote(client, *depth, "", remote)
+	} else {
+		res = resolver.NewResolver(client, *depth, basePath)
+	}
 
 	trees, err := res.ResolveAll(wfs)
 	if err != nil {

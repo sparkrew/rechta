@@ -150,7 +150,7 @@ Each dependency object includes:
 
 - `already_visited` — `false` when the action was fully resolved in this run; `true` when the same `uses` reference was seen earlier (deduplicated stub from cache, no nested dependencies re-resolved).
 - `content_sha256` — lowercase hex SHA-256 of the YAML file used for analysis (the same bytes returned by the GitHub API or read from disk): `action.yml` / `action.yaml` for actions, or the workflow file path for reusable workflows. Omitted when the file could not be loaded.
-- `content_path` — repository-relative path to that file (forward slashes), e.g. `action.yml`, `my-action/action.yml`, `.github/workflows/reuse.yml`. For local actions resolved from disk, the path is relative to the directory mode base path (`.`).
+- `content_path` — full path to the analyzed metadata file: `{uses}/{file}` (forward slashes), e.g. `actions/checkout@v4/action.yml`, `./my-local-action/action.yml`, `org/repo/.github/workflows/reuse.yml@main/.github/workflows/reuse.yml`.
 - For **node** actions, only the metadata file is hashed (`action.yml`), not `index.js` or other runtime sources.
 
 ```json
@@ -170,7 +170,7 @@ Each dependency object includes:
           "type": "node",
           "already_visited": false,
           "content_sha256": "5349b6eea0a1797a9a993c48db9d95b33d27ee1b6227ceced0c9cbf8e655c939",
-          "content_path": "action.yml"
+          "content_path": "actions/checkout@v4/action.yml"
         },
         {
           "ref": {
@@ -183,7 +183,7 @@ Each dependency object includes:
           "type": "node",
           "already_visited": true,
           "content_sha256": "ebb00c4462c87740b2cd811941f13ecb03a9d1b417a0db745c5c2df858cdebea",
-          "content_path": "action.yml"
+          "content_path": "actions/checkout@v4/action.yml"
         },
         {
           "ref": {
@@ -195,7 +195,7 @@ Each dependency object includes:
           "type": "composite",
           "already_visited": false,
           "content_sha256": "...",
-          "content_path": "my-local-action/action.yml",
+          "content_path": "./my-local-action/action.yml",
           "dependencies": [...]
         }
       ]
@@ -279,7 +279,7 @@ When using `-u`, workflows and local actions (`./path`) are fetched via the GitH
 3. For each remote reference, resolves the tag/branch to a commit SHA via the GitHub Git Data API
 4. Fetches the action's `action.yml` (or reusable workflow YAML) at that SHA via the Contents API
 5. For each local reference (`./path`), reads `action.yml`/`action.yaml` from the filesystem
-6. Records `content_sha256` (SHA-256 of those YAML bytes) and `content_path` (repo-relative file path used)
+6. Records `content_sha256` (SHA-256 of those YAML bytes) and `content_path` (full `{uses}/{file}` path)
 7. If the action is composite, extracts nested `uses:` references from its steps and recurses
 8. Deduplicates by raw `uses:` string across all workflows (`already_visited: true` on later occurrences)
 9. Enforces a configurable depth limit (default 10, matching the GitHub Actions runner)

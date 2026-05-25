@@ -388,20 +388,20 @@ runs:
 	if root.ContentSHA256 != sha256Hex([]byte(actionYAML)) {
 		t.Errorf("root content_sha256 mismatch")
 	}
-	if root.ContentPath != "action.yml" {
-		t.Errorf("root content_path = %q, want action.yml", root.ContentPath)
+	if root.ContentPath != "org/composite@v1/action.yml" {
+		t.Errorf("root content_path = %q, want org/composite@v1/action.yml", root.ContentPath)
+	}
+	if root.Children[0].ContentPath != "actions/cache@v3/action.yml" {
+		t.Errorf("child[0] content_path = %q", root.Children[0].ContentPath)
 	}
 	if root.Children[0].ContentSHA256 != sha256Hex(cacheYAML) {
 		t.Errorf("child[0] content_sha256 mismatch")
 	}
-	if root.Children[0].ContentPath != "action.yml" {
-		t.Errorf("child[0] content_path = %q", root.Children[0].ContentPath)
+	if root.Children[1].ContentPath != "actions/setup-node@v4/action.yml" {
+		t.Errorf("child[1] content_path = %q", root.Children[1].ContentPath)
 	}
 	if root.Children[1].ContentSHA256 != sha256Hex(setupYAML) {
 		t.Errorf("child[1] content_sha256 mismatch")
-	}
-	if root.Children[1].ContentPath != "action.yml" {
-		t.Errorf("child[1] content_path = %q", root.Children[1].ContentPath)
 	}
 
 	if root.Children[1].Ref.RawUses != "actions/setup-node@v4" {
@@ -471,8 +471,8 @@ func TestResolve_Deduplication(t *testing.T) {
 	if got.ContentSHA256 != wantHash {
 		t.Errorf("ContentSHA256 = %q, want %q", got.ContentSHA256, wantHash)
 	}
-	if got.ContentPath != "action.yml" {
-		t.Errorf("ContentPath = %q, want action.yml", got.ContentPath)
+	if got.ContentPath != "actions/checkout@v4/action.yml" {
+		t.Errorf("ContentPath = %q, want actions/checkout@v4/action.yml", got.ContentPath)
 	}
 }
 
@@ -529,7 +529,7 @@ func TestResolve_AlreadyVisited_IncludesContentHash(t *testing.T) {
 	if second.ContentSHA256 != wantHash {
 		t.Errorf("stub content_sha256 = %q, want %q", second.ContentSHA256, wantHash)
 	}
-	if first.ContentPath != "action.yml" || second.ContentPath != "action.yml" {
+	if first.ContentPath != "actions/checkout@v4/action.yml" || second.ContentPath != "actions/checkout@v4/action.yml" {
 		t.Errorf("first path %q second path %q", first.ContentPath, second.ContentPath)
 	}
 	if second.Children != nil && len(second.Children) > 0 {
@@ -600,6 +600,37 @@ func TestResolve_DepthLimit(t *testing.T) {
 // ---------------------------------------------------------------------------
 // ParseLocalRef tests
 // ---------------------------------------------------------------------------
+
+func TestFullContentPath(t *testing.T) {
+	tests := []struct {
+		ref  ActionRef
+		repo string
+		want string
+	}{
+		{
+			ref:  ActionRef{RawUses: "actions/upload-artifact@v4"},
+			repo: "action.yml",
+			want: "actions/upload-artifact@v4/action.yml",
+		},
+		{
+			ref:  ActionRef{RawUses: "org/repo/.github/workflows/ci.yml@main", Path: ".github/workflows/ci.yml", Ref: "main"},
+			repo: ".github/workflows/ci.yml",
+			want: "org/repo/.github/workflows/ci.yml@main/.github/workflows/ci.yml",
+		},
+		{
+			ref:  ActionRef{RawUses: "./my-action", IsLocal: true, LocalPath: "./my-action"},
+			repo: "my-action/action.yml",
+			want: "./my-action/action.yml",
+		},
+	}
+
+	for _, tt := range tests {
+		got := fullContentPath(tt.ref, tt.repo)
+		if got != tt.want {
+			t.Errorf("fullContentPath(%+v, %q) = %q, want %q", tt.ref, tt.repo, got, tt.want)
+		}
+	}
+}
 
 func TestParseLocalRef(t *testing.T) {
 	ref := ParseLocalRef("./my-action")
@@ -676,8 +707,8 @@ func TestResolve_LocalNodeAction(t *testing.T) {
 	if dep.ContentSHA256 != sha256Hex(actionYAML) {
 		t.Errorf("dep.ContentSHA256 mismatch")
 	}
-	if dep.ContentPath != "my-action/action.yml" {
-		t.Errorf("dep.ContentPath = %q, want my-action/action.yml", dep.ContentPath)
+	if dep.ContentPath != "./my-action/action.yml" {
+		t.Errorf("dep.ContentPath = %q, want %q", dep.ContentPath, "./my-action/action.yml")
 	}
 }
 
@@ -736,7 +767,7 @@ runs:
 	if root.Type != ActionTypeComposite {
 		t.Errorf("root.Type = %q, want composite", root.Type)
 	}
-	if root.ContentPath != "my-composite/action.yml" {
+	if root.ContentPath != "./my-composite/action.yml" {
 		t.Errorf("root.ContentPath = %q", root.ContentPath)
 	}
 	if root.ContentSHA256 != sha256Hex(actionYAML) {
@@ -756,7 +787,7 @@ runs:
 	if child.Type != ActionTypeNode {
 		t.Errorf("child.Type = %q, want %q", child.Type, ActionTypeNode)
 	}
-	if child.ContentPath != "inner-action/action.yml" {
+	if child.ContentPath != "./inner-action/action.yml" {
 		t.Errorf("child.ContentPath = %q", child.ContentPath)
 	}
 	if child.ContentSHA256 != sha256Hex(innerYAML) {

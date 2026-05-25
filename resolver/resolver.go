@@ -69,6 +69,29 @@ func sha256Hex(b []byte) string {
 	return fmt.Sprintf("%x", sum)
 }
 
+// fullContentPath combines a uses reference with the repository-relative metadata
+// file path, e.g. actions/upload-artifact@v4/action.yml.
+func fullContentPath(ref ActionRef, repoRelPath string) string {
+	if repoRelPath == "" {
+		return ""
+	}
+	repoRelPath = filepath.ToSlash(repoRelPath)
+
+	if ref.IsLocal {
+		localRoot := strings.TrimPrefix(ref.LocalPath, "./")
+		if localRoot == "" || localRoot == "." {
+			return filepath.ToSlash(ref.RawUses + "/" + filepath.Base(repoRelPath))
+		}
+		if strings.HasPrefix(repoRelPath, localRoot+"/") {
+			suffix := strings.TrimPrefix(repoRelPath, localRoot+"/")
+			return filepath.ToSlash(ref.RawUses + "/" + suffix)
+		}
+		return filepath.ToSlash(ref.RawUses + "/" + filepath.Base(repoRelPath))
+	}
+
+	return ref.RawUses + "/" + repoRelPath
+}
+
 // WorkflowTree groups the dependency tree for a single workflow file.
 type WorkflowTree struct {
 	Path         string            `json:"path"`
@@ -247,7 +270,7 @@ func (r *Resolver) resolveLocal(ref ActionRef, depth int) (*DependencyNode, erro
 	}
 
 	node.ContentSHA256 = sha256Hex(raw)
-	node.ContentPath = contentRelPath
+	node.ContentPath = fullContentPath(ref, contentRelPath)
 
 	using := strings.ToLower(meta.Runs.Using)
 
@@ -303,7 +326,7 @@ func (r *Resolver) resolveLocalRemote(ref ActionRef, depth int) (*DependencyNode
 	}
 
 	node.ContentSHA256 = sha256Hex(raw)
-	node.ContentPath = contentRelPath
+	node.ContentPath = fullContentPath(ref, contentRelPath)
 
 	using := strings.ToLower(meta.Runs.Using)
 
@@ -350,7 +373,7 @@ func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, A
 		}
 		deps := ExtractActionRefs(wf)
 		hash := sha256Hex(raw)
-		return deps, ActionTypeReusable, hash, relPath, nil
+		return deps, ActionTypeReusable, hash, fullContentPath(ref, relPath), nil
 	}
 
 	meta, raw, relPath := r.client.FetchActionConfig(ref.Owner, ref.Repo, sha, ref.Path)
@@ -379,16 +402,16 @@ func (r *Resolver) findTransitiveDeps(ref ActionRef, sha string) ([]ActionRef, A
 				deps = append(deps, parsed)
 			}
 		}
-		return deps, ActionTypeComposite, hash, relPath, nil
+		return deps, ActionTypeComposite, hash, fullContentPath(ref, relPath), nil
 
 	case strings.HasPrefix(using, "node"):
-		return nil, ActionTypeNode, hash, relPath, nil
+		return nil, ActionTypeNode, hash, fullContentPath(ref, relPath), nil
 
 	case using == "docker":
-		return nil, ActionTypeDocker, hash, relPath, nil
+		return nil, ActionTypeDocker, hash, fullContentPath(ref, relPath), nil
 
 	default:
-		return nil, ActionTypeUnknown, hash, relPath, nil
+		return nil, ActionTypeUnknown, hash, fullContentPath(ref, relPath), nil
 	}
 }
 

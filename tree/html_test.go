@@ -35,7 +35,7 @@ func TestPrintHTML(t *testing.T) {
 							Type:           resolver.ActionTypeNode,
 							AlreadyVisited: true,
 							ContentSHA256:  "abc123",
-							ContentPath:    "action.yml",
+							ContentPath:    "actions/checkout@v4/action.yml",
 						},
 					},
 				},

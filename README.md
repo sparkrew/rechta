@@ -14,7 +14,11 @@ Download the latest binary for your platform from [GitHub Releases](https://gith
 
 ```bash
 curl -L -o rechta https://github.com/sparkrew/rechta/releases/latest/download/rechta-linux-amd64
+```
+```bash
 chmod +x rechta
+```
+```bash
 sudo mv rechta /usr/local/bin/
 ```
 
@@ -22,7 +26,11 @@ sudo mv rechta /usr/local/bin/
 
 ```bash
 curl -L -o rechta https://github.com/sparkrew/rechta/releases/latest/download/rechta-linux-arm64
+```
+```bash
 chmod +x rechta
+```
+```bash
 sudo mv rechta /usr/local/bin/
 ```
 
@@ -30,7 +38,11 @@ sudo mv rechta /usr/local/bin/
 
 ```bash
 curl -L -o rechta https://github.com/sparkrew/rechta/releases/latest/download/rechta-darwin-arm64
+```
+```bash
 chmod +x rechta
+```
+```bash
 sudo mv rechta /usr/local/bin/
 ```
 
@@ -38,7 +50,11 @@ sudo mv rechta /usr/local/bin/
 
 ```bash
 curl -L -o rechta https://github.com/sparkrew/rechta/releases/latest/download/rechta-darwin-amd64
+```
+```bash
 chmod +x rechta
+```
+```bash
 sudo mv rechta /usr/local/bin/
 ```
 
@@ -64,7 +80,11 @@ go install github.com/sparkrew/rechta/cmd/rechta@latest
 
 ```bash
 git clone https://github.com/sparkrew/rechta.git
+```
+```bash
 cd rechta
+```
+```bash
 go build -o rechta ./cmd/rechta/
 ```
 
@@ -99,6 +119,8 @@ rechta calls the GitHub REST API to resolve action references. Without a token, 
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
+```
+```bash
 rechta -w .github/workflows
 ```
 
@@ -209,7 +231,9 @@ Each dependency object includes:
 ```bash
 rechta -w .github/workflows -format html
 # writes ./dependency-tree.html — open in your browser
+```
 
+```bash
 rechta -w .github/workflows -format html -o reports/deps.html
 ```
 
@@ -219,7 +243,11 @@ The HTML file is self-contained (no CDN): collapsible trees per workflow, type b
 
 ```bash
 rechta -w .github/workflows -o                # saves to ./dependency-tree.json
+```
+```bash
 rechta -w .github/workflows -o tree.json      # saves to ./tree.json
+```
+```bash
 rechta -w .github/workflows -format txt -o    # saves to ./dependency-tree.txt
 ```
 

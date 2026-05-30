@@ -10,7 +10,8 @@
       --surface: #141b26;
       --surface-2: #1c2636;
       --border: #2a3548;
-      --line: #3d5168;
+      --line: #4a6280;
+      --line-highlight: #58a6ff;
       --text: #e8eef5;
       --muted: #8b949e;
       --accent: #58a6ff;
@@ -23,6 +24,12 @@
       --visited: #484f58;
       --root: #e3b341;
       --grid-dot: rgba(88, 166, 255, 0.08);
+      --depth-0: #e3b341;
+      --depth-1: #58a6ff;
+      --depth-2: #3fb950;
+      --depth-3: #d2a8ff;
+      --depth-4: #f0883e;
+      --depth-5: #79c0ff;
     }
     * { box-sizing: border-box; }
     body {
@@ -74,6 +81,7 @@
     .badge-type-docker { background: rgba(110, 118, 129, 0.3); color: var(--docker); }
     .badge-type-unknown { background: rgba(139, 148, 158, 0.2); color: var(--muted); }
     .badge-type-workflow { background: rgba(227, 179, 65, 0.2); color: var(--root); }
+    .badge-depth { background: rgba(255, 255, 255, 0.06); color: var(--muted); font-family: ui-monospace, monospace; text-transform: none; }
     .badge-sha { background: rgba(88, 166, 255, 0.15); color: var(--accent); font-family: ui-monospace, monospace; font-weight: 500; text-transform: none; }
     .badge-visited { background: rgba(72, 79, 88, 0.4); color: var(--muted); }
     .tabs-bar {
@@ -133,7 +141,6 @@
       flex-shrink: 0;
     }
 
-    /* Map-style pan/zoom canvas */
     .map-shell {
       flex: 1;
       position: relative;
@@ -149,6 +156,7 @@
       background-color: var(--bg);
       background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
       background-size: 24px 24px;
+      outline: none;
     }
     .map-viewport.is-dragging { cursor: grabbing; }
     .map-viewport.is-dragging .node-box { pointer-events: none; }
@@ -158,9 +166,47 @@
       left: 0;
       transform-origin: 0 0;
       will-change: transform;
-      padding: 4rem;
     }
-    .map-canvas::after { content: ""; display: table; clear: both; }
+
+    .graph-layout {
+      position: relative;
+    }
+    .graph-depth-bands {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .graph-depth-band {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .graph-depth-band:nth-child(odd) { background: rgba(88, 166, 255, 0.025); }
+    .graph-depth-band:nth-child(even) { background: rgba(255, 255, 255, 0.012); }
+    svg.graph-edges {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 1;
+      overflow: visible;
+    }
+    svg.graph-edges path {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      transition: stroke 0.15s, stroke-width 0.15s;
+    }
+    svg.graph-edges path.path-highlight {
+      stroke: var(--line-highlight);
+      stroke-width: 2.5;
+    }
+    .graph-nodes {
+      position: relative;
+      z-index: 2;
+    }
 
     .map-toolbar {
       position: absolute;
@@ -191,7 +237,7 @@
       border-radius: 7px;
       background: var(--surface-2);
       color: var(--text);
-      font-size: 1rem;
+      font-size: 0.85rem;
       line-height: 1;
       cursor: pointer;
       display: flex;
@@ -199,18 +245,19 @@
       justify-content: center;
       transition: background 0.15s, border-color 0.15s, transform 0.1s;
     }
+    .map-btn-wide {
+      width: auto;
+      min-width: 2.1rem;
+      padding: 0 0.5rem;
+      font-size: 0.625rem;
+      font-family: ui-monospace, monospace;
+      letter-spacing: 0.02em;
+    }
     .map-btn:hover {
       background: rgba(88, 166, 255, 0.12);
       border-color: rgba(88, 166, 255, 0.45);
     }
     .map-btn:active { transform: scale(0.94); }
-    .map-btn-label {
-      font-size: 0.625rem;
-      color: var(--muted);
-      text-align: center;
-      font-family: ui-monospace, monospace;
-      pointer-events: none;
-    }
     .map-hint {
       position: absolute;
       bottom: 1rem;
@@ -225,6 +272,8 @@
       z-index: 20;
       pointer-events: none;
       opacity: 0.85;
+      max-width: 22rem;
+      line-height: 1.45;
     }
     .map-minimap {
       position: absolute;
@@ -257,19 +306,17 @@
       inset: 0;
       transform-origin: 0 0;
       pointer-events: none;
-      opacity: 0.45;
     }
-    .map-minimap-content .node-box {
-      min-width: 0 !important;
-      max-width: none !important;
-      padding: 0.15rem 0.25rem !important;
-      font-size: 0.5rem;
-      box-shadow: none !important;
+    .minimap-rect {
+      position: absolute;
+      border-radius: 2px;
+      background: rgba(88, 166, 255, 0.35);
+      border: 1px solid rgba(88, 166, 255, 0.5);
     }
-    .map-minimap-content .node-box .label { font-size: 0.45rem !important; }
-    .map-minimap-content .badges,
-    .map-minimap-content .node-actions,
-    .map-minimap-content .details-panel { display: none !important; }
+    .minimap-rect.root {
+      background: rgba(227, 179, 65, 0.45);
+      border-color: rgba(227, 179, 65, 0.65);
+    }
     .map-minimap-viewport {
       position: absolute;
       border: 2px solid var(--accent);
@@ -299,99 +346,62 @@
       pointer-events: none;
     }
 
-    /* Top-down tree graph (org-chart connectors) */
-    ul.graph-tree,
-    ul.graph-tree ul {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: table;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    ul.graph-tree ul {
-      padding-top: 2rem;
-      position: relative;
-    }
-    ul.graph-tree ul::before {
-      content: "";
+    .graph-node-slot {
       position: absolute;
-      top: 0;
-      left: 50%;
-      border-left: 2px solid var(--line);
-      width: 0;
-      height: 2rem;
-      transition: border-color 0.2s;
     }
-    ul.graph-tree li {
-      float: left;
-      text-align: center;
-      list-style: none;
-      position: relative;
-      padding: 2rem 0.85rem 0;
-    }
-    ul.graph-tree > li { padding-top: 0; }
-    ul.graph-tree li::before,
-    ul.graph-tree li::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      right: 50%;
-      border-top: 2px solid var(--line);
-      width: 50%;
-      height: 2rem;
-    }
-    ul.graph-tree li::after {
-      right: auto;
-      left: 50%;
-      border-left: 2px solid var(--line);
-    }
-    ul.graph-tree li:only-child::before,
-    ul.graph-tree li:only-child::after { display: none; }
-    ul.graph-tree li:first-child::before,
-    ul.graph-tree li:last-child::after { border: 0 none; }
-    ul.graph-tree ul.collapsed { display: none; }
-
     .graph-node {
-      display: inline-flex;
+      display: flex;
       flex-direction: column;
       align-items: center;
-      vertical-align: top;
     }
     .node-box {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.6rem 0.85rem;
-      min-width: 11rem;
-      max-width: 18rem;
+      gap: 0.3rem;
+      padding: 0.55rem 0.75rem;
+      width: 100%;
       border-radius: 10px;
       border: 2px solid var(--border);
+      border-left-width: 4px;
+      border-left-color: var(--depth-accent, var(--border));
       background: linear-gradient(145deg, var(--surface-2) 0%, rgba(28, 38, 54, 0.95) 100%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
       position: relative;
       z-index: 1;
-      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s;
+      cursor: pointer;
     }
     .node-box.root {
       border-color: rgba(227, 179, 65, 0.55);
+      border-left-color: var(--root);
       background: linear-gradient(145deg, rgba(227, 179, 65, 0.14) 0%, rgba(227, 179, 65, 0.06) 100%);
-      min-width: 13rem;
       box-shadow: 0 4px 20px rgba(227, 179, 65, 0.15);
     }
     .node-box:hover {
       border-color: var(--accent);
+      border-left-color: var(--accent);
       box-shadow: 0 6px 24px rgba(88, 166, 255, 0.2);
       transform: translateY(-2px);
     }
-    .node-box.visited { border-style: dashed; border-color: var(--visited); opacity: 0.88; }
-    .node-box.type-composite { border-color: rgba(210, 168, 255, 0.5); }
-    .node-box.type-reusable-workflow { border-color: rgba(240, 136, 62, 0.5); }
-    .node-box.type-local { border-color: rgba(121, 192, 255, 0.5); }
+    .node-box.path-highlight {
+      border-color: var(--accent);
+      border-left-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.3), 0 6px 24px rgba(88, 166, 255, 0.25);
+    }
+    .node-box.selected {
+      border-color: var(--accent);
+      border-left-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow), 0 8px 28px rgba(88, 166, 255, 0.3);
+    }
+    .node-box.dimmed { opacity: 0.45; }
+    .node-box.visited { border-style: dashed; opacity: 0.88; }
+    .node-box.type-composite { border-top-color: rgba(210, 168, 255, 0.5); }
+    .node-box.type-reusable-workflow { border-top-color: rgba(240, 136, 62, 0.5); }
+    .node-box.type-local { border-top-color: rgba(121, 192, 255, 0.5); }
     .node-box .label {
       font-family: ui-monospace, monospace;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       line-height: 1.35;
       word-break: break-word;
       text-align: center;
@@ -405,7 +415,7 @@
     .node-box .node-actions {
       display: flex;
       gap: 0.35rem;
-      margin-top: 0.15rem;
+      margin-top: 0.1rem;
     }
     button.toggle, button.details-btn, button.copy-btn {
       background: var(--surface);
@@ -426,6 +436,7 @@
       display: none;
       margin-top: 0.5rem;
       padding: 0.65rem;
+      width: 100%;
       min-width: 14rem;
       max-width: 22rem;
       background: rgba(20, 27, 38, 0.95);
@@ -435,6 +446,8 @@
       text-align: left;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(8px);
+      position: relative;
+      z-index: 5;
     }
     .details-panel.open { display: block; }
     .details-panel dl { margin: 0; }
@@ -459,13 +472,14 @@
 <body>
   <header>
     <h1>GitHub Actions dependency tree</h1>
-    <p>Generated by <strong>rechta</strong> — interactive map view, one tab per workflow</p>
+    <p>Generated by <strong>rechta</strong> — pan/zoom map view with depth hierarchy, one tab per workflow</p>
     <div class="legend">
       <span class="legend-item"><span class="badge badge-type-workflow">workflow</span> Root</span>
       <span class="legend-item"><span class="badge badge-type-node">node</span> JavaScript action</span>
       <span class="legend-item"><span class="badge badge-type-composite">composite</span> Composite</span>
       <span class="legend-item"><span class="badge badge-type-reusable-workflow">reusable</span> Reusable workflow</span>
       <span class="legend-item"><span class="badge badge-visited">*</span> Deduplicated</span>
+      <span class="legend-item"><span class="badge badge-depth">L1</span> Depth level</span>
     </div>
   </header>
   <div class="tabs-bar" id="tabs" role="tablist" hidden></div>
@@ -479,10 +493,24 @@
   const mainEl = document.getElementById('main');
 
   const MIN_SCALE = 0.15;
+  const MIN_FIT_SCALE = 0.05;
   const MAX_SCALE = 2.5;
   const ZOOM_STEP = 1.15;
+  const CANVAS_PAD = 64;
+  const NODE_W = 176;
+  const NODE_H = 88;
+  const ROOT_W = 208;
+  const ROOT_H = 88;
+  const H_GAP = 28;
+  const V_GAP = 72;
+  const DEPTH_COLORS = ['var(--depth-0)', 'var(--depth-1)', 'var(--depth-2)', 'var(--depth-3)', 'var(--depth-4)', 'var(--depth-5)'];
+
+  let activeShell = null;
+  let idCounter = 0;
 
   function tabId(index) { return 'tab-panel-' + index; }
+  function nextId() { return 'n-' + (idCounter++); }
+  function depthColor(depth) { return DEPTH_COLORS[depth % DEPTH_COLORS.length]; }
 
   function shortName(path) {
     const parts = path.replace(/\\/g, '/').split('/');
@@ -529,13 +557,122 @@
     return !!el.closest('button, a, input, textarea, select, .details-panel');
   }
 
-  function PanZoomMap(viewport, canvas, minimapEl, zoomBadgeEl) {
+  function depsOf(node) {
+    return node.dependencies || node.children || [];
+  }
+
+  /* ---- Top-down tree layout (compact, centered over children) ---- */
+
+  function buildTreeModel(wf) {
+    function walk(nodeData, isRoot, depth, parentId) {
+      const id = nextId();
+      const childrenData = isRoot ? depsOf(wf) : depsOf(nodeData);
+      return {
+        id: id,
+        data: isRoot ? { path: wf.path } : nodeData,
+        isRoot: isRoot,
+        depth: depth,
+        parentId: parentId,
+        children: childrenData.map(function (child) {
+          return walk(child, false, depth + 1, id);
+        })
+      };
+    }
+    return walk(null, true, 0, null);
+  }
+
+  function countLeaves(node, collapsed) {
+    if (collapsed.has(node.id) || node.children.length === 0) return 1;
+    return node.children.reduce(function (sum, c) { return sum + countLeaves(c, collapsed); }, 0);
+  }
+
+  function layoutTopDown(root, collapsed) {
+    const placements = [];
+    const edges = [];
+    let maxDepth = 0;
+    let leafIndex = 0;
+    const unitW = NODE_W + H_GAP;
+
+    function place(node, depth) {
+      maxDepth = Math.max(maxDepth, depth);
+      const w = node.isRoot ? ROOT_W : NODE_W;
+      const h = node.isRoot ? ROOT_H : NODE_H;
+      const isCollapsed = collapsed.has(node.id);
+      const visibleChildren = isCollapsed ? [] : node.children;
+
+      let centerX;
+      if (visibleChildren.length === 0) {
+        centerX = leafIndex * unitW + w / 2;
+        leafIndex++;
+      } else {
+        visibleChildren.forEach(function (child) { place(child, depth + 1); });
+        const first = placements.find(function (p) { return p.id === visibleChildren[0].id; });
+        const last = placements.find(function (p) { return p.id === visibleChildren[visibleChildren.length - 1].id; });
+        centerX = (first.centerX + last.centerX) / 2;
+      }
+
+      const x = centerX - w / 2;
+      const y = depth * (NODE_H + V_GAP);
+      placements.push({
+        id: node.id,
+        node: node,
+        x: x,
+        y: y,
+        centerX: centerX,
+        width: w,
+        height: h,
+        depth: depth
+      });
+
+      visibleChildren.forEach(function (child) {
+        edges.push({ from: node.id, to: child.id });
+      });
+    }
+
+    place(root, 0);
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let maxY = 0;
+    placements.forEach(function (p) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x + p.width);
+      maxY = Math.max(maxY, p.y + p.height);
+    });
+    if (!placements.length) {
+      minX = 0;
+      maxX = ROOT_W;
+      maxY = ROOT_H;
+    }
+
+    const offsetX = CANVAS_PAD - minX;
+    const offsetY = CANVAS_PAD;
+    placements.forEach(function (p) {
+      p.x += offsetX;
+      p.centerX += offsetX;
+      p.y += offsetY;
+    });
+
+    return {
+      placements: placements,
+      edges: edges,
+      width: maxX - minX + CANVAS_PAD * 2,
+      height: maxY + CANVAS_PAD * 2,
+      maxDepth: maxDepth,
+      rowHeight: NODE_H + V_GAP
+    };
+  }
+
+  /* ---- Pan / zoom ---- */
+
+  function PanZoomMap(viewport, canvas, minimapEl, zoomBadgeEl, graphView) {
     this.viewport = viewport;
     this.canvas = canvas;
     this.minimapEl = minimapEl;
     this.minimapContent = minimapEl.querySelector('.map-minimap-content');
     this.minimapViewport = minimapEl.querySelector('.map-minimap-viewport');
     this.zoomBadgeEl = zoomBadgeEl;
+    this.graphView = graphView;
 
     this.scale = 1;
     this.panX = 0;
@@ -554,7 +691,7 @@
     this._onWheel = this.onWheel.bind(this);
     this._onDblClick = this.onDblClick.bind(this);
     this._onMinimapDown = this.onMinimapDown.bind(this);
-    this._onResize = this.updateMinimap.bind(this);
+    this._onResize = this.onResize.bind(this);
 
     viewport.addEventListener('pointerdown', this._onPointerDown);
     viewport.addEventListener('pointermove', this._onPointerMove);
@@ -564,9 +701,6 @@
     viewport.addEventListener('dblclick', this._onDblClick);
     minimapEl.addEventListener('pointerdown', this._onMinimapDown);
     window.addEventListener('resize', this._onResize);
-
-    this.syncMinimapClone();
-    this.fitToView();
   }
 
   PanZoomMap.prototype.destroy = function () {
@@ -580,6 +714,26 @@
     window.removeEventListener('resize', this._onResize);
   };
 
+  PanZoomMap.prototype.measureCanvas = function () {
+    const layout = this.graphView.layout;
+    if (layout && layout.width && layout.height) {
+      this.canvas.style.width = layout.width + 'px';
+      this.canvas.style.height = layout.height + 'px';
+      return { width: layout.width, height: layout.height };
+    }
+    return {
+      width: this.canvas.scrollWidth || this.canvas.offsetWidth,
+      height: this.canvas.scrollHeight || this.canvas.offsetHeight
+    };
+  };
+
+  PanZoomMap.prototype.getCanvasSize = function () {
+    const w = parseFloat(this.canvas.style.width);
+    const h = parseFloat(this.canvas.style.height);
+    if (w && h) return { width: w, height: h };
+    return this.measureCanvas();
+  };
+
   PanZoomMap.prototype.applyTransform = function () {
     this.canvas.style.transform = 'translate(' + this.panX + 'px, ' + this.panY + 'px) scale(' + this.scale + ')';
     if (this.zoomBadgeEl) {
@@ -588,22 +742,16 @@
     this.updateMinimap();
   };
 
-  PanZoomMap.prototype.getCanvasSize = function () {
-    return {
-      width: this.canvas.offsetWidth,
-      height: this.canvas.offsetHeight
-    };
-  };
-
   PanZoomMap.prototype.fitToView = function (padding) {
-    padding = padding == null ? 80 : padding;
+    padding = padding == null ? 48 : padding;
     const vp = this.viewport.getBoundingClientRect();
-    const size = this.getCanvasSize();
-    if (!size.width || !size.height) return;
+    const size = this.measureCanvas();
+    if (!size.width || !size.height || !vp.width) return;
 
     const scaleX = (vp.width - padding * 2) / size.width;
     const scaleY = (vp.height - padding * 2) / size.height;
-    this.scale = Math.min(Math.max(Math.min(scaleX, scaleY), MIN_SCALE), MAX_SCALE);
+    const fitScale = Math.min(scaleX, scaleY);
+    this.scale = Math.min(Math.max(fitScale, MIN_FIT_SCALE), MAX_SCALE);
 
     this.panX = (vp.width - size.width * this.scale) / 2;
     this.panY = (vp.height - size.height * this.scale) / 2;
@@ -623,6 +771,12 @@
     this.applyTransform();
   };
 
+  PanZoomMap.prototype.panBy = function (dx, dy) {
+    this.panX += dx;
+    this.panY += dy;
+    this.applyTransform();
+  };
+
   PanZoomMap.prototype.panToCanvasPoint = function (canvasX, canvasY) {
     const vp = this.viewport.getBoundingClientRect();
     this.panX = vp.width / 2 - canvasX * this.scale;
@@ -630,20 +784,10 @@
     this.applyTransform();
   };
 
-  PanZoomMap.prototype.syncMinimapClone = function () {
-    const clone = this.canvas.cloneNode(true);
-    clone.classList.remove('map-canvas');
-    clone.style.transform = '';
-    clone.style.padding = '0';
-    clone.style.position = 'static';
-    this.minimapContent.innerHTML = '';
-    this.minimapContent.appendChild(clone);
-  };
-
-  PanZoomMap.prototype.updateMinimap = function () {
+  PanZoomMap.prototype.getMinimapTransform = function () {
     const mmRect = this.minimapEl.getBoundingClientRect();
     const size = this.getCanvasSize();
-    if (!size.width || !size.height || !mmRect.width) return;
+    if (!size.width || !size.height || !mmRect.width) return null;
 
     const fitScale = Math.min(
       (mmRect.width - 8) / size.width,
@@ -651,20 +795,48 @@
     );
     const offsetX = (mmRect.width - size.width * fitScale) / 2;
     const offsetY = (mmRect.height - size.height * fitScale) / 2;
+    return { fitScale: fitScale, offsetX: offsetX, offsetY: offsetY };
+  };
+
+  PanZoomMap.prototype.syncMinimapRects = function () {
+    const layout = this.graphView.layout;
+    if (!layout) return;
+    this.minimapContent.innerHTML = '';
+    layout.placements.forEach(function (p) {
+      const rect = document.createElement('div');
+      rect.className = 'minimap-rect' + (p.node.isRoot ? ' root' : '');
+      rect.style.left = p.x + 'px';
+      rect.style.top = p.y + 'px';
+      rect.style.width = Math.max(p.width * 0.35, 4) + 'px';
+      rect.style.height = Math.max(p.height * 0.35, 3) + 'px';
+      this.minimapContent.appendChild(rect);
+    }, this);
+  };
+
+  PanZoomMap.prototype.updateMinimap = function () {
+    const mmRect = this.minimapEl.getBoundingClientRect();
+    const size = this.getCanvasSize();
+    const mm = this.getMinimapTransform();
+    if (!size.width || !size.height || !mm) return;
 
     this.minimapContent.style.transform =
-      'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + fitScale + ')';
+      'translate(' + mm.offsetX + 'px, ' + mm.offsetY + 'px) scale(' + mm.fitScale + ')';
 
     const vpRect = this.viewport.getBoundingClientRect();
-    const viewLeft = (-this.panX / this.scale) * fitScale + offsetX;
-    const viewTop = (-this.panY / this.scale) * fitScale + offsetY;
-    const viewW = (vpRect.width / this.scale) * fitScale;
-    const viewH = (vpRect.height / this.scale) * fitScale;
+    const viewLeft = (-this.panX / this.scale) * mm.fitScale + mm.offsetX;
+    const viewTop = (-this.panY / this.scale) * mm.fitScale + mm.offsetY;
+    const viewW = (vpRect.width / this.scale) * mm.fitScale;
+    const viewH = (vpRect.height / this.scale) * mm.fitScale;
 
     this.minimapViewport.style.left = viewLeft + 'px';
     this.minimapViewport.style.top = viewTop + 'px';
     this.minimapViewport.style.width = Math.max(viewW, 6) + 'px';
     this.minimapViewport.style.height = Math.max(viewH, 6) + 'px';
+  };
+
+  PanZoomMap.prototype.onResize = function () {
+    this.measureCanvas();
+    this.updateMinimap();
   };
 
   PanZoomMap.prototype.onPointerDown = function (e) {
@@ -730,15 +902,10 @@
   PanZoomMap.prototype.onMinimapDown = function (e) {
     e.preventDefault();
     const mmRect = this.minimapEl.getBoundingClientRect();
-    const size = this.getCanvasSize();
-    const fitScale = Math.min(
-      (mmRect.width - 8) / size.width,
-      (mmRect.height - 8) / size.height
-    );
-    const offsetX = (mmRect.width - size.width * fitScale) / 2;
-    const offsetY = (mmRect.height - size.height * fitScale) / 2;
-    const canvasX = (e.clientX - mmRect.left - offsetX) / fitScale;
-    const canvasY = (e.clientY - mmRect.top - offsetY) / fitScale;
+    const mm = this.getMinimapTransform();
+    if (!mm) return;
+    const canvasX = (e.clientX - mmRect.left - mm.offsetX) / mm.fitScale;
+    const canvasY = (e.clientY - mmRect.top - mm.offsetY) / mm.fitScale;
     this.panToCanvasPoint(canvasX, canvasY);
   };
 
@@ -752,11 +919,10 @@
 
   PanZoomMap.prototype.getPinchCenter = function () {
     const pts = Array.from(this.pointers.values());
-    return {
-      x: (pts[0].x + pts[1].x) / 2,
-      y: (pts[0].y + pts[1].y) / 2
-    };
+    return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
   };
+
+  /* ---- Graph view (render + interaction) ---- */
 
   function buildDetailsPanel(node, isRoot) {
     const panel = document.createElement('div');
@@ -807,7 +973,10 @@
       b.type = 'button';
       b.className = 'copy-btn';
       b.textContent = 'Copy SHA';
-      b.addEventListener('click', function () { copyText(node.sha, b); });
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        copyText(node.sha, b);
+      });
       actions.appendChild(b);
     }
     if (node.content_sha256) {
@@ -815,47 +984,146 @@
       b.type = 'button';
       b.className = 'copy-btn';
       b.textContent = 'Copy hash';
-      b.addEventListener('click', function () { copyText(node.content_sha256, b); });
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        copyText(node.content_sha256, b);
+      });
       actions.appendChild(b);
     }
     if (actions.childNodes.length) panel.appendChild(actions);
     return panel;
   }
 
-  function buildNodeBox(node, options) {
-    options = options || {};
-    const isRoot = !!options.isRoot;
-    const deps = node.dependencies || node.children || [];
-    const hasChildren = !isRoot && deps.length > 0;
+  function GraphView(wf, layoutEl, svgEl, nodesEl, bandsEl) {
+    this.wf = wf;
+    this.layoutEl = layoutEl;
+    this.svgEl = svgEl;
+    this.nodesEl = nodesEl;
+    this.bandsEl = bandsEl;
+    this.root = buildTreeModel(wf);
+    this.collapsed = new Set();
+    this.layout = null;
+    this.entries = new Map();
+    this.selectedId = null;
+    this.highlightId = null;
+    this.onLayoutChange = null;
+  }
+
+  GraphView.prototype.relayout = function () {
+    this.layout = layoutTopDown(this.root, this.collapsed);
+    this.render();
+    if (this.onLayoutChange) this.onLayoutChange();
+  };
+
+  GraphView.prototype.collectSubtreeIds = function (node) {
+    const ids = [node.id];
+    node.children.forEach(function (c) {
+      ids.push.apply(ids, this.collectSubtreeIds(c));
+    }, this);
+    return ids;
+  };
+
+  GraphView.prototype.getAncestorIds = function (nodeId) {
+    const ids = [];
+    let current = this.entries.get(nodeId);
+    while (current && current.parentId) {
+      ids.push(current.parentId);
+      current = this.entries.get(current.parentId);
+    }
+    return ids;
+  };
+
+  GraphView.prototype.setHighlight = function (nodeId) {
+    this.highlightId = nodeId;
+    const highlightIds = new Set();
+    if (nodeId) {
+      highlightIds.add(nodeId);
+      this.getAncestorIds(nodeId).forEach(function (id) { highlightIds.add(id); });
+    }
+    this.entries.forEach(function (entry, id) {
+      const box = entry.boxEl;
+      if (!box) return;
+      const onPath = highlightIds.has(id);
+      const selected = id === this.selectedId;
+      box.classList.toggle('path-highlight', onPath && !selected);
+      box.classList.toggle('selected', selected);
+      box.classList.toggle('dimmed', !!nodeId && !onPath && id !== this.selectedId);
+    }, this);
+    this.svgEl.querySelectorAll('path').forEach(function (path) {
+      const from = path.getAttribute('data-from');
+      const to = path.getAttribute('data-to');
+      const onPath = nodeId && highlightIds.has(from) && highlightIds.has(to);
+      path.classList.toggle('path-highlight', !!onPath);
+    });
+  };
+
+  GraphView.prototype.toggleCollapse = function (nodeId) {
+    if (this.collapsed.has(nodeId)) {
+      this.collapsed.delete(nodeId);
+    } else {
+      this.collapsed.add(nodeId);
+    }
+    this.relayout();
+  };
+
+  GraphView.prototype.expandAll = function () {
+    this.collapsed.clear();
+    this.relayout();
+  };
+
+  GraphView.prototype.collapseAll = function () {
+    this.collapsed.clear();
+    function walk(node) {
+      if (node.children.length > 0) this.collapsed.add(node.id);
+      node.children.forEach(walk, this);
+    }
+    walk.call(this, this.root);
+    this.relayout();
+  };
+
+  GraphView.prototype.buildNodeUI = function (treeNode) {
+    const isRoot = treeNode.isRoot;
+    const nodeData = treeNode.data;
+    const hasChildren = treeNode.children.length > 0;
+    const depth = treeNode.depth;
+
+    const slot = document.createElement('div');
+    slot.className = 'graph-node-slot';
+    slot.dataset.nodeId = treeNode.id;
 
     const wrap = document.createElement('div');
     wrap.className = 'graph-node';
 
     const box = document.createElement('div');
-    box.className = 'node-box' + (isRoot ? ' root' : ' type-' + (node.type || 'unknown'));
-    if (!isRoot && node.ref && node.ref.is_local) box.classList.add('type-local');
-    if (node.already_visited) box.classList.add('visited');
+    box.className = 'node-box' + (isRoot ? ' root' : ' type-' + (nodeData.type || 'unknown'));
+    box.style.setProperty('--depth-accent', depthColor(depth));
+    if (!isRoot && nodeData.ref && nodeData.ref.is_local) box.classList.add('type-local');
+    if (!isRoot && nodeData.already_visited) box.classList.add('visited');
 
     const label = document.createElement('span');
     label.className = 'label';
-    label.textContent = isRoot ? shortName(node.path) : labelFor(node);
-    label.title = isRoot ? node.path : labelFor(node);
+    label.textContent = isRoot ? shortName(nodeData.path) : labelFor(nodeData);
+    label.title = isRoot ? nodeData.path : labelFor(nodeData);
     box.appendChild(label);
 
     const badges = document.createElement('div');
     badges.className = 'badges';
+    const depthBadge = document.createElement('span');
+    depthBadge.className = 'badge badge-depth';
+    depthBadge.textContent = 'L' + depth;
+    badges.appendChild(depthBadge);
     const typeBadge = document.createElement('span');
-    typeBadge.className = 'badge ' + badgeClass(isRoot ? 'workflow' : node.type);
-    typeBadge.textContent = isRoot ? 'workflow' : (node.type || 'unknown');
+    typeBadge.className = 'badge ' + badgeClass(isRoot ? 'workflow' : nodeData.type);
+    typeBadge.textContent = isRoot ? 'workflow' : (nodeData.type || 'unknown');
     badges.appendChild(typeBadge);
-    if (!isRoot && node.sha) {
+    if (!isRoot && nodeData.sha) {
       const shaBadge = document.createElement('span');
       shaBadge.className = 'badge badge-sha';
-      shaBadge.title = node.sha;
-      shaBadge.textContent = shortSHA(node.sha);
+      shaBadge.title = nodeData.sha;
+      shaBadge.textContent = shortSHA(nodeData.sha);
       badges.appendChild(shaBadge);
     }
-    if (!isRoot && node.already_visited) {
+    if (!isRoot && nodeData.already_visited) {
       const v = document.createElement('span');
       v.className = 'badge badge-visited';
       v.title = 'Deduplicated';
@@ -870,7 +1138,7 @@
     detailsBtn.type = 'button';
     detailsBtn.className = 'details-btn';
     detailsBtn.textContent = 'Details';
-    const detailsPanel = buildDetailsPanel(node, isRoot);
+    const detailsPanel = buildDetailsPanel(nodeData, isRoot);
     detailsBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       detailsPanel.classList.toggle('open');
@@ -882,59 +1150,116 @@
       toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'toggle';
-      toggle.textContent = '\u2212';
-      toggle.title = 'Collapse subtree';
+      const collapsed = this.collapsed.has(treeNode.id);
+      toggle.textContent = collapsed ? '+' : '\u2212';
+      toggle.title = collapsed ? 'Expand subtree' : 'Collapse subtree';
+      toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        this.toggleCollapse(treeNode.id);
+      }.bind(this));
       actions.appendChild(toggle);
     }
     box.appendChild(actions);
+
+    box.addEventListener('mouseenter', function () {
+      this.setHighlight(treeNode.id);
+    }.bind(this));
+    box.addEventListener('mouseleave', function () {
+      if (this.selectedId) {
+        this.setHighlight(this.selectedId);
+      } else {
+        this.setHighlight(null);
+      }
+    }.bind(this));
+    box.addEventListener('click', function (e) {
+      if (isInteractiveTarget(e.target)) return;
+      this.selectedId = this.selectedId === treeNode.id ? null : treeNode.id;
+      this.setHighlight(this.selectedId || this.highlightId);
+    }.bind(this));
+
     wrap.appendChild(box);
     wrap.appendChild(detailsPanel);
+    slot.appendChild(wrap);
 
-    return { wrap: wrap, toggle: toggle, hasChildren: hasChildren };
-  }
+    return { slot: slot, boxEl: box, toggle: toggle };
+  };
 
-  function renderGraphNode(node) {
-    const li = document.createElement('li');
-    const built = buildNodeBox(node, { depth: 0 });
-    li.appendChild(built.wrap);
+  GraphView.prototype.render = function () {
+    const layout = this.layout;
+    this.layoutEl.style.width = layout.width + 'px';
+    this.layoutEl.style.height = layout.height + 'px';
 
-    const deps = node.dependencies || node.children || [];
-    if (deps.length > 0) {
-      const childUl = document.createElement('ul');
-      deps.forEach(function (child) {
-        childUl.appendChild(renderGraphNode(child));
-      });
-      if (built.toggle) {
-        built.toggle.addEventListener('click', function (e) {
-          e.stopPropagation();
-          const collapsed = childUl.classList.toggle('collapsed');
-          built.toggle.textContent = collapsed ? '+' : '\u2212';
-          built.toggle.title = collapsed ? 'Expand subtree' : 'Collapse subtree';
-          const map = li.closest('.map-shell');
-          if (map && map._panZoom) {
-            requestAnimationFrame(function () {
-              map._panZoom.syncMinimapClone();
-              map._panZoom.updateMinimap();
-            });
-          }
-        });
-      }
-      li.appendChild(childUl);
+    this.bandsEl.innerHTML = '';
+    for (let d = 0; d <= layout.maxDepth; d++) {
+      const band = document.createElement('div');
+      band.className = 'graph-depth-band';
+      band.style.top = (CANVAS_PAD + d * layout.rowHeight - 8) + 'px';
+      band.style.height = layout.rowHeight + 'px';
+      this.bandsEl.appendChild(band);
     }
-    return li;
-  }
+
+    this.svgEl.setAttribute('width', layout.width);
+    this.svgEl.setAttribute('height', layout.height);
+    this.svgEl.innerHTML =
+      '<defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">' +
+      '<polygon points="0 0, 8 3, 0 6" fill="var(--line)"/></marker></defs>';
+
+    this.nodesEl.innerHTML = '';
+    this.entries.clear();
+
+    layout.placements.forEach(function (p) {
+      const ui = this.buildNodeUI(p.node);
+      ui.slot.style.left = p.x + 'px';
+      ui.slot.style.top = p.y + 'px';
+      ui.slot.style.width = p.width + 'px';
+      this.nodesEl.appendChild(ui.slot);
+      this.entries.set(p.id, {
+        id: p.id,
+        parentId: p.node.parentId,
+        boxEl: ui.boxEl,
+        placement: p
+      });
+    }, this);
+
+    layout.edges.forEach(function (edge) {
+      const fromP = layout.placements.find(function (p) { return p.id === edge.from; });
+      const toP = layout.placements.find(function (p) { return p.id === edge.to; });
+      if (!fromP || !toP) return;
+
+      const x1 = fromP.centerX;
+      const y1 = fromP.y + fromP.height;
+      const x2 = toP.centerX;
+      const y2 = toP.y;
+      const midY = y1 + (y2 - y1) / 2;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d',
+        'M' + x1 + ',' + y1 +
+        ' L' + x1 + ',' + midY +
+        ' L' + x2 + ',' + midY +
+        ' L' + x2 + ',' + y2
+      );
+      path.setAttribute('marker-end', 'url(#arrowhead)');
+      path.setAttribute('data-from', edge.from);
+      path.setAttribute('data-to', edge.to);
+      this.svgEl.appendChild(path);
+    }, this);
+
+    if (this.selectedId) {
+      this.setHighlight(this.selectedId);
+    } else if (this.highlightId) {
+      this.setHighlight(this.highlightId);
+    }
+  };
 
   function createMapToolbar(actions) {
     const toolbar = document.createElement('div');
     toolbar.className = 'map-toolbar';
 
-    const group = document.createElement('div');
-    group.className = 'map-toolbar-group';
-
-    function addBtn(label, title, onClick) {
+    function addBtn(group, label, title, onClick, wide) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'map-btn';
+      btn.className = 'map-btn' + (wide ? ' map-btn-wide' : '');
       btn.textContent = label;
       btn.title = title;
       btn.addEventListener('click', function (e) {
@@ -944,12 +1269,20 @@
       group.appendChild(btn);
     }
 
-    addBtn('+', 'Zoom in', actions.zoomIn);
-    addBtn('\u2212', 'Zoom out', actions.zoomOut);
-    addBtn('\u229EF', 'Fit to view', actions.fit);
-    addBtn('1', 'Reset zoom (100%)', actions.reset);
+    const zoomGroup = document.createElement('div');
+    zoomGroup.className = 'map-toolbar-group';
+    addBtn(zoomGroup, '+', 'Zoom in (+)', actions.zoomIn);
+    addBtn(zoomGroup, '\u2212', 'Zoom out (-)', actions.zoomOut);
+    addBtn(zoomGroup, '\u229EF', 'Fit to view (0)', actions.fit);
+    addBtn(zoomGroup, '1', 'Reset zoom (100%)', actions.reset);
+    toolbar.appendChild(zoomGroup);
 
-    toolbar.appendChild(group);
+    const treeGroup = document.createElement('div');
+    treeGroup.className = 'map-toolbar-group';
+    addBtn(treeGroup, 'Expand', 'Expand all subtrees', actions.expandAll, true);
+    addBtn(treeGroup, 'Collapse', 'Collapse all subtrees', actions.collapseAll, true);
+    toolbar.appendChild(treeGroup);
+
     return toolbar;
   }
 
@@ -963,38 +1296,36 @@
 
     const viewport = document.createElement('div');
     viewport.className = 'map-viewport';
+    viewport.tabIndex = 0;
 
     const canvas = document.createElement('div');
     canvas.className = 'map-canvas';
 
-    const tree = document.createElement('ul');
-    tree.className = 'graph-tree';
+    const layoutEl = document.createElement('div');
+    layoutEl.className = 'graph-layout';
 
-    const rootLi = document.createElement('li');
-    const rootBuilt = buildNodeBox({ path: wf.path }, { isRoot: true });
-    rootLi.appendChild(rootBuilt.wrap);
+    const bandsEl = document.createElement('div');
+    bandsEl.className = 'graph-depth-bands';
 
-    const deps = wf.dependencies || [];
-    if (deps.length > 0) {
-      const childUl = document.createElement('ul');
-      deps.forEach(function (node) {
-        childUl.appendChild(renderGraphNode(node));
-      });
-      rootLi.appendChild(childUl);
-    } else {
-      const empty = document.createElement('p');
-      empty.className = 'empty';
-      empty.textContent = 'No action dependencies.';
-      rootLi.appendChild(empty);
-    }
+    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.classList.add('graph-edges');
 
-    tree.appendChild(rootLi);
-    canvas.appendChild(tree);
+    const nodesEl = document.createElement('div');
+    nodesEl.className = 'graph-nodes';
+
+    layoutEl.appendChild(bandsEl);
+    layoutEl.appendChild(svgEl);
+    layoutEl.appendChild(nodesEl);
+    canvas.appendChild(layoutEl);
+
+    const graphView = new GraphView(wf, layoutEl, svgEl, nodesEl, bandsEl);
+    graphView.relayout();
+
     viewport.appendChild(canvas);
 
     const hint = document.createElement('div');
     hint.className = 'map-hint';
-    hint.textContent = 'Drag to pan \u00b7 Scroll to zoom \u00b7 Double-click to fit \u00b7 Click minimap to jump';
+    hint.textContent = 'Drag to pan \u00b7 Scroll to zoom \u00b7 Double-click to fit \u00b7 Arrow keys to move \u00b7 +/- zoom \u00b7 0 fit \u00b7 Click node to pin path';
 
     const minimap = document.createElement('div');
     minimap.className = 'map-minimap';
@@ -1004,6 +1335,34 @@
       '<div class="map-minimap-viewport"></div>';
 
     shell.appendChild(viewport);
+
+    shell._initMap = function () {
+      if (shell._panZoom) {
+        shell._panZoom.measureCanvas();
+        shell._panZoom.syncMinimapRects();
+        shell._panZoom.updateMinimap();
+        return;
+      }
+
+      const panZoom = new PanZoomMap(viewport, canvas, minimap, zoomBadge, graphView);
+      shell._panZoom = panZoom;
+
+      graphView.onLayoutChange = function () {
+        panZoom.measureCanvas();
+        panZoom.syncMinimapRects();
+        panZoom.updateMinimap();
+      };
+
+      panZoom.syncMinimapRects();
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          panZoom.measureCanvas();
+          panZoom.fitToView();
+          panZoom.syncMinimapRects();
+        });
+      });
+    };
 
     const toolbar = createMapToolbar({
       zoomIn: function () {
@@ -1022,7 +1381,9 @@
         shell._panZoom.panX = (rect.width - size.width) / 2;
         shell._panZoom.panY = (rect.height - size.height) / 2;
         shell._panZoom.applyTransform();
-      }
+      },
+      expandAll: function () { graphView.expandAll(); },
+      collapseAll: function () { graphView.collapseAll(); }
     });
 
     shell.appendChild(toolbar);
@@ -1030,14 +1391,28 @@
     shell.appendChild(hint);
     shell.appendChild(minimap);
 
-    shell._initMap = function () {
-      if (shell._panZoom) {
-        shell._panZoom.updateMinimap();
-        return;
+    viewport.addEventListener('keydown', function (e) {
+      if (activeShell !== shell || !shell._panZoom) return;
+      const pz = shell._panZoom;
+      const step = e.shiftKey ? 80 : 40;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); pz.panBy(step, 0); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); pz.panBy(-step, 0); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); pz.panBy(0, step); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); pz.panBy(0, -step); }
+      else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        pz.zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, ZOOM_STEP);
+      } else if (e.key === '-') {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        pz.zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / ZOOM_STEP);
       }
-      shell._panZoom = new PanZoomMap(viewport, canvas, minimap, zoomBadge);
-    };
+      else if (e.key === '0') { e.preventDefault(); pz.fitToView(); }
+    });
 
+    shell._graphView = graphView;
+    shell._viewport = viewport;
     return shell;
   }
 
@@ -1051,9 +1426,11 @@
       panel.hidden = !active;
       if (active) {
         const shell = panel.querySelector('.map-shell');
+        activeShell = shell;
         if (shell && shell._initMap) {
           requestAnimationFrame(function () {
             shell._initMap();
+            if (shell._viewport) shell._viewport.focus({ preventScroll: true });
           });
         }
       }
@@ -1066,6 +1443,7 @@
   }
 
   tabsEl.hidden = false;
+  idCounter = 0;
 
   workflows.forEach(function (wf, index) {
     const btn = document.createElement('button');

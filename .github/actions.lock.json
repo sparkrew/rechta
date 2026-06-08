@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-04-27T05:07:12.102Z",
+  "generated": "2026-06-08T22:21:06.618Z",
   "actions": {
     "actions/checkout": [
       {
@@ -77,6 +77,14 @@
         "version": "v9",
         "sha": "82606bf257cbaff209d206a39f5134f0cfbfd2ee",
         "integrity": "sha256-62ab8b63c597e5812200918ac599c81d06323b194e0ae8a3d546a4f4f5d1129c",
+        "dependencies": []
+      }
+    ],
+    "actions/download-artifact": [
+      {
+        "version": "v4",
+        "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+        "integrity": "sha256-30dfdaccd01921c2fd144f068d188da3b0b37a5cf427a9ed56fe81a32c6d14b2",
         "dependencies": []
       }
     ]

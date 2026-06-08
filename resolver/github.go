@@ -38,6 +38,11 @@ func NewGitHubClient(token string, maxConcurrent int) *GitHubClient {
 	}
 }
 
+// SetBaseURLForTest overrides the GitHub API base URL. It is intended for tests only.
+func (c *GitHubClient) SetBaseURLForTest(baseURL string) {
+	c.baseURL = baseURL
+}
+
 // gitRef is the response from /repos/{owner}/{repo}/git/refs/{type}/{name}.
 type gitRef struct {
 	Object struct {

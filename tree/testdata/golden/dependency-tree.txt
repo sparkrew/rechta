@@ -1,0 +1,8 @@
+testdata/workflows/ci.yml
++-- actions/checkout@v4 (dddd00000000)
+`-- org/composite@v1 (aaaa00000000)
+    +-- actions/cache@v3 (bbbb00000000)
+    `-- actions/setup-node@v4 (cccc00000000)
+
+testdata/workflows/deploy.yml
+`-- actions/checkout@v4 (dddd00000000) *

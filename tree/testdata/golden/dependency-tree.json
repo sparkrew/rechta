@@ -1,0 +1,81 @@
+{
+  "workflows": [
+    {
+      "dependencies": [
+        {
+          "already_visited": false,
+          "content_path": "actions/checkout@v4/action.yml",
+          "content_sha256": "fd97c271f1dba7fde6c30abbccdd2b46097ce18b062c5f2b1208c0eeea339414",
+          "ref": {
+            "owner": "actions",
+            "ref": "v4",
+            "repo": "checkout",
+            "uses": "actions/checkout@v4"
+          },
+          "sha": "dddd000000000000000000000000000000000000",
+          "type": "node"
+        },
+        {
+          "already_visited": false,
+          "content_path": "org/composite@v1/action.yml",
+          "content_sha256": "76fff61f4fdd99d944e487fa9c91c523309d8be87716a1dd134049cf55f2d619",
+          "dependencies": [
+            {
+              "already_visited": false,
+              "content_path": "actions/cache@v3/action.yml",
+              "content_sha256": "e0bc22054c4aaf4179fd8d4c5a14df9e1414ee61a090fffce75b42d3ce6d934f",
+              "ref": {
+                "owner": "actions",
+                "ref": "v3",
+                "repo": "cache",
+                "uses": "actions/cache@v3"
+              },
+              "sha": "bbbb000000000000000000000000000000000000",
+              "type": "node"
+            },
+            {
+              "already_visited": false,
+              "content_path": "actions/setup-node@v4/action.yml",
+              "content_sha256": "f9427e10badecab9c63608b48c136bf91a14e887c0c2cf655b9cd767c54edc27",
+              "ref": {
+                "owner": "actions",
+                "ref": "v4",
+                "repo": "setup-node",
+                "uses": "actions/setup-node@v4"
+              },
+              "sha": "cccc000000000000000000000000000000000000",
+              "type": "node"
+            }
+          ],
+          "ref": {
+            "owner": "org",
+            "ref": "v1",
+            "repo": "composite",
+            "uses": "org/composite@v1"
+          },
+          "sha": "aaaa000000000000000000000000000000000000",
+          "type": "composite"
+        }
+      ],
+      "path": "testdata/workflows/ci.yml"
+    },
+    {
+      "dependencies": [
+        {
+          "already_visited": true,
+          "content_path": "actions/checkout@v4/action.yml",
+          "content_sha256": "fd97c271f1dba7fde6c30abbccdd2b46097ce18b062c5f2b1208c0eeea339414",
+          "ref": {
+            "owner": "actions",
+            "ref": "v4",
+            "repo": "checkout",
+            "uses": "actions/checkout@v4"
+          },
+          "sha": "dddd000000000000000000000000000000000000",
+          "type": "node"
+        }
+      ],
+      "path": "testdata/workflows/deploy.yml"
+    }
+  ]
+}

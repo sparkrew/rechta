@@ -104,6 +104,7 @@ rechta [flags]
 | `--output` | `-o` | | Save output to a file (see below) |
 | `--token` | `-t` | `$GITHUB_TOKEN` env | GitHub API token for authentication |
 | `--format` | | `json` | Output format: `txt`, `json`, or `html` |
+| `--reused-actions` | | `false` | Output a flat JSON list of unique external actions with repo metadata |
 | `--depth` | | `10` | Maximum transitive dependency depth |
 
 For `txt` and `json`, output is printed to the terminal. The `-o` flag additionally saves it to a file:
@@ -112,6 +113,8 @@ For `txt` and `json`, output is printed to the terminal. The `-o` flag additiona
 - `-o path/to/file.json`: saves to the specified path
 
 For `html`, output is written only to a file (nothing on stdout). The default path is `./dependency-tree.html`, or the path given with `-o`.
+
+With `-reused-actions`, output is always a flat JSON array (the `-format` flag is ignored). Use `-o` to save to `./reused-actions.json` by default.
 
 ### Authentication
 
@@ -161,6 +164,31 @@ rechta -f .github/workflows/ci.yml
 ```
 
 When using `-f`, local action references (`./path`) are listed but not resolved (no repo context is available to read their `action.yml`).
+
+**Unique reused actions with repo metadata:**
+
+```bash
+rechta -w .github/workflows -reused-actions
+```
+
+Produces a flat JSON array of every unique external `uses` reference (direct and transitive), with repository metrics:
+
+```json
+[
+  {
+    "uses": "actions/checkout@v4",
+    "contributors": 123,
+    "stars": 5800,
+    "released_on": "2019-08-08"
+  }
+]
+```
+
+- Local actions (`./path`) are excluded.
+- `contributors` and `stars` are fetched once per repository (shared across versions).
+- `released_on` is the publish date of the referenced version (`YYYY-MM-DD`). Lookup order: exact GitHub Release tag, annotated git tag date, then the GitHub Release whose tag resolves to the action's commit SHA (covers major-version refs like `@v4`). Omitted when none apply.
+
+This mode makes additional GitHub API calls (~2 per unique repository plus 1 per unique `uses` for `released_on`). A `GITHUB_TOKEN` is strongly recommended.
 
 **JSON output (default):**
 

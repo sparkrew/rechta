@@ -65,3 +65,10 @@ func PrintJSON(trees []resolver.WorkflowTree, w io.Writer) error {
 		Workflows []resolver.WorkflowTree `json:"workflows"`
 	}{Workflows: trees})
 }
+
+// PrintReusedActionsJSON renders a flat list of unique reused actions as JSON.
+func PrintReusedActionsJSON(actions []resolver.ReusedAction, w io.Writer) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(actions)
+}

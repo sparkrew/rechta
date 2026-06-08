@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/sparkrew/rechta/models"
@@ -152,6 +153,28 @@ func (r *Resolver) ResolveAll(workflows []*models.Workflow) ([]WorkflowTree, err
 	}
 
 	return trees, nil
+}
+
+// ResolvedActionRef pairs an action reference with its resolved commit SHA.
+type ResolvedActionRef struct {
+	Ref ActionRef
+	SHA string
+}
+
+// UniqueExternalActions returns all unique external action references resolved
+// during this run, sorted by uses string. Local references are excluded.
+func (r *Resolver) UniqueExternalActions() []ResolvedActionRef {
+	var refs []ResolvedActionRef
+	for _, node := range r.visited {
+		if node.Ref.IsLocal {
+			continue
+		}
+		refs = append(refs, ResolvedActionRef{Ref: node.Ref, SHA: node.SHA})
+	}
+	sort.Slice(refs, func(i, j int) bool {
+		return refs[i].Ref.RawUses < refs[j].Ref.RawUses
+	})
+	return refs
 }
 
 func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {

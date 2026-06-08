@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	defaultOutputJSON = "dependency-tree.json"
-	defaultOutputTxt  = "dependency-tree.txt"
-	defaultOutputHTML = "dependency-tree.html"
+	defaultOutputJSON         = "dependency-tree.json"
+	defaultOutputTxt          = "dependency-tree.txt"
+	defaultOutputHTML         = "dependency-tree.html"
+	defaultOutputReusedActions = "reused-actions.json"
 )
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
 	repoURL := flag.String("url", "", "GitHub repository URL (overrides -workflows and -file)")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
 	format := flag.String("format", "json", "Output format: txt, json, or html (default: json)")
+	reusedActions := flag.Bool("reused-actions", false, "Output a flat JSON list of unique external actions with repo metadata")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
 	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
@@ -55,6 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  rechta -u https://github.com/owner/repo/tree/v1.0.0\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o                              # saves to ./dependency-tree.json\n")
 		fmt.Fprintf(os.Stderr, "  rechta -o my-tree.json                 # saves to ./my-tree.json\n")
+		fmt.Fprintf(os.Stderr, "  rechta -w .github/workflows -reused-actions\n")
 		fmt.Fprintf(os.Stderr, "\nSet GITHUB_TOKEN to avoid API rate limits (60 req/hr unauthenticated).\n")
 		fmt.Fprintf(os.Stderr, "\nNote: local action references (./path) are resolved in directory mode (-w)\n")
 		fmt.Fprintf(os.Stderr, "and when fetching from a GitHub URL (-u), not in single-file mode (-f).\n")
@@ -147,6 +150,26 @@ func main() {
 
 	fmt.Fprintln(os.Stderr)
 
+	if *reusedActions {
+		refs := res.UniqueExternalActions()
+		fmt.Fprintf(os.Stderr, "Found %d unique external action(s)\n\n", len(refs))
+
+		actions, err := resolver.EnrichReusedActions(client, refs)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error enriching reused actions: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := tree.PrintReusedActionsJSON(actions, os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
+			os.Exit(1)
+		}
+		if saveOutput {
+			writeReusedActionsOutput(actions, outputPath)
+		}
+		return
+	}
+
 	switch *format {
 	case "html":
 		path := outputPath
@@ -198,6 +221,26 @@ func writeTextOrJSONOutput(trees []resolver.WorkflowTree, format, outputPath str
 			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 			os.Exit(1)
 		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)
+}
+
+func writeReusedActionsOutput(actions []resolver.ReusedAction, outputPath string) {
+	if outputPath == "" {
+		outputPath = defaultOutputReusedActions
+	}
+
+	f, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating output file %s: %v\n", outputPath, err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	if err := tree.PrintReusedActionsJSON(actions, f); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)

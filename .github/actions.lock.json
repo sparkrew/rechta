@@ -13,7 +13,7 @@
     "gjtorikian/gh-actions-lockfile": [
       {
         "version": "v1",
-        "sha": "24be31e941fc36df78f82762cd45c28b4cbcaedd",
+        "sha": "8abbeb1fe0a4bf20279c81fa206e6a2fc862a830",
         "integrity": "sha256-6a3612083812bfbf22ef48e284a93dbf82766dea50126f85d2160ae092018087",
         "dependencies": []
       }
@@ -75,7 +75,7 @@
     "golangci/golangci-lint-action": [
       {
         "version": "v9",
-        "sha": "1e7e51e771db61008b38414a730f564565cf7c20",
+        "sha": "82606bf257cbaff209d206a39f5134f0cfbfd2ee",
         "integrity": "sha256-fca096ec98837aa54f2a50595f11f7a1210ccef27c07d6742886e9421f88bbb0",
         "dependencies": []
       }

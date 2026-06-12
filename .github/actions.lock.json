@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "generated": "2026-06-12T16:19:14.401Z",
+  "actions": {
+    "actions/checkout": [
+      {
+        "version": "v6",
+        "sha": "df4cb1c069e1874edd31b4311f1884172cec0e10",
+        "integrity": "sha256-5e138ab90923e60695e5fa0260db0992f80cac664c437d99a43ad1f3a050b563",
+        "dependencies": []
+      }
+    ],
+    "gjtorikian/gh-actions-lockfile": [
+      {
+        "version": "v1",
+        "sha": "8abbeb1fe0a4bf20279c81fa206e6a2fc862a830",
+        "integrity": "sha256-433ba4e791b1c1fe3431e0f0c8766cb1c3823dd7ae8739cb2b9c07c0b023f87f",
+        "dependencies": []
+      }
+    ],
+    "stefanzweifel/git-auto-commit-action": [
+      {
+        "version": "v7",
+        "sha": "04702edda442b2e678b25b537cec683a1493fcb9",
+        "integrity": "sha256-fb727ccb3f59ccc9d4fc5e0de90e1238ad8b9ff2f48e4b100e47ed99c229c509",
+        "dependencies": []
+      }
+    ],
+    "actions/setup-node": [
+      {
+        "version": "v4",
+        "sha": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "integrity": "sha256-583278d0d6b00430eb698333f3ed8f32770a487abf7f051681d22a4eb9779f18",
+        "dependencies": []
+      }
+    ],
+    "actions/setup-go": [
+      {
+        "version": "v5",
+        "sha": "40f1582b2485089dde7abd97c1529aa768e1baff",
+        "integrity": "sha256-c43cd83deea19ad0e7f2fd7276e132da5543d74d2512202da36ef063a0f8bfcc",
+        "dependencies": []
+      }
+    ],
+    "actions/upload-artifact": [
+      {
+        "version": "v4",
+        "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "integrity": "sha256-d5ee64a6e1acd6b34ba789dbae72b073637349d9ac9fb6fe07d5cbcd40768eae",
+        "dependencies": []
+      },
+      {
+        "version": "v6",
+        "sha": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+        "integrity": "sha256-e0f34f5d0067ed363845c1fe618bf73306b466016b6d3e24b99a9536923fe0da",
+        "dependencies": []
+      }
+    ],
+    "actions/github-script": [
+      {
+        "version": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+        "sha": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+        "integrity": "sha256-ca7dc67e53832e93e910d6277dda3aa22caaa14250560ba1ce60642dac1eee7e",
+        "dependencies": []
+      }
+    ],
+    "codecov/codecov-action": [
+      {
+        "version": "v5",
+        "sha": "0fb7174895f61a3b6b78fc075e0cd60383518dac",
+        "integrity": "sha256-87a0a979f237d9ec2dbd95558600e8876cd87583c524d4e0c8516549a8a58577",
+        "dependencies": [
+          {
+            "ref": "actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+            "sha": "60a0d83039c74a4aee543508d2ffcb1c3799cdea",
+            "integrity": "sha256-ca7dc67e53832e93e910d6277dda3aa22caaa14250560ba1ce60642dac1eee7e"
+          }
+        ]
+      }
+    ],
+    "golangci/golangci-lint-action": [
+      {
+        "version": "v9",
+        "sha": "82606bf257cbaff209d206a39f5134f0cfbfd2ee",
+        "integrity": "sha256-62ab8b63c597e5812200918ac599c81d06323b194e0ae8a3d546a4f4f5d1129c",
+        "dependencies": []
+      }
+    ],
+    "actions/download-artifact": [
+      {
+        "version": "v4",
+        "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+        "integrity": "sha256-30dfdaccd01921c2fd144f068d188da3b0b37a5cf427a9ed56fe81a32c6d14b2",
+        "dependencies": []
+      }
+    ]
+  }
+}

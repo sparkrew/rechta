@@ -66,9 +66,18 @@ func PrintJSON(trees []resolver.WorkflowTree, w io.Writer) error {
 	}{Workflows: trees})
 }
 
+// ReusedActionEntry is one unique external action reference in -reused-actions output.
+type ReusedActionEntry struct {
+	Uses string `json:"uses"`
+}
+
 // PrintReusedActionsJSON renders a flat list of unique reused actions as JSON.
-func PrintReusedActionsJSON(actions []resolver.ReusedAction, w io.Writer) error {
+func PrintReusedActionsJSON(uses []string, w io.Writer) error {
+	entries := make([]ReusedActionEntry, len(uses))
+	for i, u := range uses {
+		entries[i] = ReusedActionEntry{Uses: u}
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(actions)
+	return enc.Encode(entries)
 }

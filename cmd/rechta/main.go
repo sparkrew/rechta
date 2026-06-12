@@ -24,7 +24,7 @@ func main() {
 	repoURL := flag.String("url", "", "GitHub repository URL (overrides -workflows and -file)")
 	token := flag.String("token", "", "GitHub token (default: GITHUB_TOKEN env var)")
 	format := flag.String("format", "json", "Output format: txt, json, or html (default: json)")
-	reusedActions := flag.Bool("reused-actions", false, "Output a flat JSON list of unique external actions with repo metadata")
+	reusedActions := flag.Bool("reused-actions", false, "Output a flat JSON list of unique external actions")
 	depth := flag.Int("depth", resolver.DefaultMaxDepth, "Maximum transitive dependency depth")
 	flag.StringVar(workflows, "w", ".github/workflows", "Path to workflows directory (shorthand)")
 	flag.StringVar(file, "f", "", "Path to a single workflow file (shorthand)")
@@ -151,21 +151,15 @@ func main() {
 	fmt.Fprintln(os.Stderr)
 
 	if *reusedActions {
-		refs := res.UniqueExternalActions()
-		fmt.Fprintf(os.Stderr, "Found %d unique external action(s)\n\n", len(refs))
+		uses := res.UniqueExternalActions()
+		fmt.Fprintf(os.Stderr, "Found %d unique external action(s)\n\n", len(uses))
 
-		actions, err := resolver.EnrichReusedActions(client, refs)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error enriching reused actions: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := tree.PrintReusedActionsJSON(actions, os.Stdout); err != nil {
+		if err := tree.PrintReusedActionsJSON(uses, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
 			os.Exit(1)
 		}
 		if saveOutput {
-			writeReusedActionsOutput(actions, outputPath)
+			writeReusedActionsOutput(uses, outputPath)
 		}
 		return
 	}
@@ -226,7 +220,7 @@ func writeTextOrJSONOutput(trees []resolver.WorkflowTree, format, outputPath str
 	fmt.Fprintf(os.Stderr, "Output saved to %s\n", outputPath)
 }
 
-func writeReusedActionsOutput(actions []resolver.ReusedAction, outputPath string) {
+func writeReusedActionsOutput(uses []string, outputPath string) {
 	if outputPath == "" {
 		outputPath = defaultOutputReusedActions
 	}
@@ -238,7 +232,7 @@ func writeReusedActionsOutput(actions []resolver.ReusedAction, outputPath string
 	}
 	defer f.Close()
 
-	if err := tree.PrintReusedActionsJSON(actions, f); err != nil {
+	if err := tree.PrintReusedActionsJSON(uses, f); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 		os.Exit(1)
 	}

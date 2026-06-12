@@ -155,26 +155,18 @@ func (r *Resolver) ResolveAll(workflows []*models.Workflow) ([]WorkflowTree, err
 	return trees, nil
 }
 
-// ResolvedActionRef pairs an action reference with its resolved commit SHA.
-type ResolvedActionRef struct {
-	Ref ActionRef
-	SHA string
-}
-
-// UniqueExternalActions returns all unique external action references resolved
-// during this run, sorted by uses string. Local references are excluded.
-func (r *Resolver) UniqueExternalActions() []ResolvedActionRef {
-	var refs []ResolvedActionRef
+// UniqueExternalActions returns all unique external action uses strings resolved
+// during this run, sorted alphabetically. Local references are excluded.
+func (r *Resolver) UniqueExternalActions() []string {
+	var uses []string
 	for _, node := range r.visited {
 		if node.Ref.IsLocal {
 			continue
 		}
-		refs = append(refs, ResolvedActionRef{Ref: node.Ref, SHA: node.SHA})
+		uses = append(uses, node.Ref.RawUses)
 	}
-	sort.Slice(refs, func(i, j int) bool {
-		return refs[i].Ref.RawUses < refs[j].Ref.RawUses
-	})
-	return refs
+	sort.Strings(uses)
+	return uses
 }
 
 func (r *Resolver) resolve(ref ActionRef, depth int) (*DependencyNode, error) {

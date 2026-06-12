@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated": "2026-06-08T22:21:06.618Z",
+  "generated": "2026-06-12T16:06:02.183Z",
   "actions": {
     "actions/checkout": [
       {
@@ -61,8 +61,8 @@
     "codecov/codecov-action": [
       {
         "version": "v5",
-        "sha": "75cd11691c0faa626561e295848008c8a7dddffe",
-        "integrity": "sha256-456b5e92946d1a4bc3e24695410db9e9243e3ea422c2be55f2dd8fe62a17409b",
+        "sha": "0fb7174895f61a3b6b78fc075e0cd60383518dac",
+        "integrity": "sha256-87a0a979f237d9ec2dbd95558600e8876cd87583c524d4e0c8516549a8a58577",
         "dependencies": [
           {
             "ref": "actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea",
